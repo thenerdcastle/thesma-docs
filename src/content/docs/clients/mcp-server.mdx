@@ -1,25 +1,133 @@
 ---
 title: MCP server
-description: Ask your AI assistant real business questions, get structured SEC, Census, BLS, and SBA data back. Hosted at mcp.thesma.dev.
+description: Model Context Protocol server for Thesma — ask AI assistants real business questions, get structured SEC, Census, BLS, and SBA data back. Hosted at mcp.thesma.dev or self-host with pip install thesma-mcp.
 ---
 
-:::note[Coming soon]
-The full MCP server guide — hosted connection (Claude Desktop / Claude.ai / Cursor integrations via OAuth), self-hosted `pip install thesma-mcp`, the full 40+ tool surface across SEC, Census, BLS, SBA, and funds — is in progress for a post-launch update.
-:::
+The Thesma MCP server lets AI assistants — Claude Desktop, Claude.ai, Cursor, ChatGPT — call Thesma tools directly. Connect it once, then ask your assistant real business questions in natural language and it composes the right tool calls and returns structured data.
+
+This is the surface most of Thesma's agent-use value rides on. If you're integrating Thesma into an AI workflow, start here.
 
 ## Two ways to use
 
-1. **Hosted** — connect `mcp.thesma.dev` as an integration in Claude Desktop, Claude.ai, or Cursor. OAuth flow signs you in with your Thesma account. No key-wrangling — your API key **is** the OAuth access token.
-2. **Self-host** — `pip install thesma-mcp` and run locally with your own API key.
+### 1. Hosted — `mcp.thesma.dev`
 
-## Tool surface
+Connect `mcp.thesma.dev` as an integration in your AI client. The server is hosted; you don't run anything locally.
 
-40+ tools across:
+**Claude Desktop / Claude.ai / Cursor** — add a new MCP integration, point it at `https://mcp.thesma.dev`. The client walks through an OAuth sign-in with your Thesma account. Your **API key is the OAuth access token** — there are no separate MCP credentials. Rate limits and scope match your API plan exactly.
 
-- **SEC** — companies, filings, financials, ratios, screener, events, insider trades, institutional holdings, compensation, board members
-- **Census** — places, metrics, breakdowns
-- **BLS** — industries, employment, wages, occupations, turnover, unemployment
-- **SBA** — lending by county/state/industry, lender detail
-- **Funds** — holdings, holding changes
+**ChatGPT** — enterprise/team plans that support MCP integrations follow the same OAuth flow.
 
-Ask your AI assistant a real business question ("what's Apple's 5-year revenue trend vs. their industry employment trend?") and it'll compose the right tool calls and return structured data.
+This is the recommended path for most users.
+
+### 2. Self-host — `pip install thesma-mcp`
+
+For teams that prefer a local MCP server pointed at their own API key — maybe you're running it inside a VPC, or you want to pre-filter tool responses, or you need custom logging.
+
+```bash
+pip install thesma-mcp
+export THESMA_API_KEY="gd_live_..."
+thesma-mcp serve                 # stdio (for Claude Desktop local config)
+thesma-mcp serve --http --port 8080   # HTTP transport
+```
+
+Point your AI client at the local process. Same tool surface, same behavior, your hardware.
+
+## Tool surface (40+ tools)
+
+Every public HTTP endpoint has a corresponding MCP tool. Tool descriptions are tuned for agent consumption — natural-language summaries, not raw JSON field dumps — so the model picks the right tool without needing to read the OpenAPI spec.
+
+### SEC
+
+- `get_company` — company identity, industry, exchange, enriched with labor + lending context
+- `search_companies` — by ticker, name, SIC, exchange, state, county
+- `get_financials` — income statement, balance sheet, cash flow for a period
+- `get_financial_metric` — single-metric time series
+- `get_ratios` — profitability, returns, leverage, growth YoY
+- `get_ratio_history` — single-ratio time series
+- `get_events` — 8-K events, filterable by category
+- `get_insider_trades` — Form 4 transactions
+- `get_institutional_holders` — 13F holders of a company
+- `get_holding_changes` — period-over-period position changes
+- `get_executive_compensation` — pay breakdown + CEO-to-median ratio
+- `get_board_members` — DEF 14A board composition
+- `search_filings` — filing-level search
+- `screen_companies` — multi-factor screener across all three datasets
+- `get_fund_holdings` — 13F filer's holdings
+- `search_funds` — 13F filer directory
+
+### US Census
+
+- `search_census_places` — look up geographies by name or FIPS
+- `get_census_place` — geography detail
+- `get_census_place_metrics` — all 26 metrics for one place
+- `get_census_place_metric_series` — single-metric time series
+- `get_census_place_breakdown` — sub-population breakdowns
+- `explore_census_metrics` — catalogue browser
+- `explore_census_geographies` — level catalogue
+- `compare_census_metric` — multi-place comparison
+- `get_census_metric_detail` — metric definition and vintage coverage
+
+### US BLS
+
+- `get_industry_employment` — CES monthly series by NAICS
+- `get_industry_turnover` — JOLTS by NAICS
+- `get_industry_detail` — industry catalogue entry
+- `search_industries` — NAICS browser
+- `get_county_employment` — QCEW by county
+- `get_county_wages` — QCEW wage totals by county
+- `get_county_unemployment` — LAUS by county
+- `get_state_unemployment` — LAUS by state
+- `get_state_turnover` — JOLTS by state
+- `get_regional_turnover` — JOLTS by region
+- `get_occupation_wages` — OEWS wage distribution
+- `search_occupations` — SOC browser
+- `explore_bls_metrics` — catalogue browser
+- `compare_county_unemployment` / `compare_state_unemployment` — multi-place comparison
+
+### US SBA
+
+- `get_county_lending` — SBA 7(a) aggregates for one county
+- `get_state_lending` — state aggregates
+- `get_industry_lending` — NAICS aggregates
+- `get_lender` / `get_lenders` — lender detail and directory
+- `get_lending_characteristics` — loan-size, term, guarantee-pct distributions
+- `get_lending_outcomes` — charge-off aggregates
+
+## Agent framing
+
+The tools are designed for questions, not API calls. Try these with your assistant:
+
+> **"What's Apple's 5-year revenue trend, and how does it compare to the semiconductor industry's employment growth over the same period?"**
+
+The assistant picks `get_financial_metric` for AAPL revenue and `get_industry_employment` for NAICS 3344 (semiconductors), aligns the time axes, and summarises.
+
+> **"Which S&P 500 companies headquartered in Texas had the highest ROE last fiscal year?"**
+
+Assistant picks `screen_companies` with `state_fips=48` + an ROE filter, then ranks.
+
+> **"How concentrated is small-business lending in Los Angeles County, and what's the charge-off rate trend?"**
+
+Assistant picks `get_county_lending` for FIPS 06037 with a time range, optionally `get_lending_characteristics` for the concentration story.
+
+> **"Pull the latest insider trades for NVDA and flag any unusually large sales."**
+
+Assistant picks `get_insider_trades` for NVDA, filters by value, summarises.
+
+## Rate limiting
+
+MCP requests consume your API plan's daily rate limit exactly like HTTP requests. Every tool call == one API call under the hood. The assistant sees 429s as structured errors and can back off.
+
+Watch the portal's Usage page for MCP usage — it's indistinguishable from direct API usage in the rollup.
+
+## Links
+
+- **Hosted endpoint:** [mcp.thesma.dev](https://mcp.thesma.dev)
+- **PyPI (self-host):** [pypi.org/project/thesma-mcp](https://pypi.org/project/thesma-mcp/)
+- **Source:** [github.com/thesma-dev/thesma-mcp](https://github.com/thesma-dev/thesma-mcp)
+- **MCP spec:** [modelcontextprotocol.io](https://modelcontextprotocol.io)
+
+## See also
+
+- [Python SDK](/clients/python-sdk) — same data surface, programmatic
+- [CLI](/clients/cli) — same data surface, shell-scriptable
+- [Authentication](/getting-started/authentication) — your API key IS the MCP access token

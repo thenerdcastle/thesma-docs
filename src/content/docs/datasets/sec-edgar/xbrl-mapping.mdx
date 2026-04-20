@@ -1,16 +1,118 @@
 ---
 title: XBRL mapping
-description: How SEC XBRL filings are normalised to canonical fields on Thesma financials responses.
+description: How SEC XBRL filings are normalised to canonical fields on Thesma financials responses. Source tags, versioning, and known gaps including the IFRS 20-F limitation (Q2 2026).
 ---
 
-:::note[Coming soon]
-The full XBRL mapping guide — how SEC XBRL filings are normalised to canonical fields, what the `metadata.source_tags` field means on a financials response, and known limitations of the mapping — is in progress for a post-launch update.
+SEC filers tag their financial statements using **XBRL** (eXtensible Business Reporting Language) — a taxonomy of thousands of concepts like `us-gaap:Revenues`, `us-gaap:NetIncomeLoss`, `us-gaap:Assets`. The problem is taxonomy drift: different filers use different concepts for the same economic fact, the same filer uses different concepts across years, and extension taxonomies proliferate. Raw XBRL is not cross-comparable out of the box.
 
-For now, see the **SEC EDGAR → Financials** section in the [API Reference](/api-reference) for the full response schema.
-:::
+Thesma normalises this into a stable **canonical field schema**. Every `/v1/us/sec/companies/{cik}/financials` response uses the same field names across every filer and every year.
 
-### Known limitation — IFRS 20-F coverage
+## The canonical schema
 
-IFRS 20-F filers (Spotify, Nu Holdings, GlobalFoundries, and other foreign private issuers) currently have **limited historical coverage** in the canonical financials mapping. Native-currency IFRS support is targeted for **Q2 2026**.
+| Canonical field | Statement | Unit |
+|---|---|---|
+| `revenue` | Income statement | USD |
+| `cost_of_revenue` | Income statement | USD |
+| `gross_profit` | Income statement | USD |
+| `research_and_development` | Income statement | USD |
+| `selling_general_admin` | Income statement | USD |
+| `operating_expenses` | Income statement | USD |
+| `operating_income` | Income statement | USD |
+| `pre_tax_income` | Income statement | USD |
+| `income_tax` | Income statement | USD |
+| `net_income` | Income statement | USD |
+| `eps_basic` | Income statement | USD/share |
+| `eps_diluted` | Income statement | USD/share |
+| `total_assets` | Balance sheet | USD |
+| `current_assets` | Balance sheet | USD |
+| `current_liabilities` | Balance sheet | USD |
+| `total_liabilities` | Balance sheet | USD |
+| `stockholders_equity` | Balance sheet | USD |
+| `cash_and_equivalents` | Balance sheet | USD |
+| `long_term_debt` | Balance sheet | USD |
+| `operating_cash_flow` | Cash flow | USD |
+| `investing_cash_flow` | Cash flow | USD |
+| `financing_cash_flow` | Cash flow | USD |
+| `capital_expenditures` | Cash flow | USD |
 
-If you need IFRS 20-F coverage today, the raw filings are reachable via the `/v1/us/sec/filings` endpoint — you'd need to parse them yourself until the canonical mapping catches up.
+Full list with XBRL source-tag mappings is queryable at `/v1/us/sec/financials/fields`:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/financials/fields" | jq '.data[] | {canonical: .name, source_tags: .us_gaap_tags[:3]}'
+```
+
+## `metadata.source_tags` on every response
+
+Every financial value on a financials response carries metadata showing **which XBRL concept it was derived from** in that specific filing. This is the audit trail — if a filer used `us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax` in one 10-K and `us-gaap:Revenues` in the next, both get mapped to canonical `revenue` but the `source_tags` field records which concept was used each time.
+
+```json
+{
+  "data": [
+    {
+      "fiscal_year": 2024,
+      "period_type": "annual",
+      "revenue": 391035000000,
+      "net_income": 93736000000,
+      "metadata": {
+        "accession_number": "0000320193-24-000123",
+        "filed_at": "2024-11-01",
+        "source_tags": {
+          "revenue": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+          "net_income": "us-gaap:NetIncomeLoss"
+        }
+      }
+    }
+  ]
+}
+```
+
+Use `source_tags` when:
+
+- You need to reconcile a Thesma canonical field against a filer's raw XBRL.
+- You're building a model that weights periods differently based on mapping confidence.
+- A filer switches concepts between periods and you want to know which period used which concept.
+
+## Mapping confidence
+
+Not every XBRL concept maps cleanly. The canonical fields are defined as a hierarchy — if a filer emits the most-specific concept, it's a direct map; if they emit a parent concept, the mapping walks up the taxonomy.
+
+The `metadata.mapping_quality` field (when present) encodes this:
+
+| Value | Meaning |
+|---|---|
+| `exact` | Direct 1:1 map from a single concept. |
+| `derived` | Computed from a sum or difference of other concepts (e.g., `gross_profit = revenue - cost_of_revenue` when the filer didn't tag `GrossProfit`). |
+| `estimated` | Inferred with non-trivial assumptions. Check `source_tags` to understand what was assumed. |
+
+Most large-cap filers are `exact` across the board. Smaller filers and IFRS 20-F filers are more likely to show `derived` or `estimated`.
+
+## Known limitations
+
+### IFRS 20-F filers — limited coverage, Q2 2026 target
+
+The canonical schema is designed around US-GAAP concepts. Foreign private issuers that file **20-F** with IFRS statements — Spotify, Nu Holdings, GlobalFoundries, and others — are partially normalised:
+
+- Company records exist in `/v1/us/sec/companies`.
+- Raw 20-F filings are indexed in `/v1/us/sec/filings`.
+- Canonical `/v1/us/sec/companies/{cik}/financials` responses have **limited historical coverage** — expect sparse coverage pre-2023 and occasional gaps post-2023.
+
+Native-currency IFRS support (EUR, BRL, etc. reporting without lossy conversion) and full IFRS-concept mapping are targeted for **Q2 2026**. Until then, 20-F users should fetch raw filings and parse XBRL directly for fields we haven't fully mapped.
+
+### Extension taxonomies
+
+Filers can define their own XBRL extension concepts (e.g., `aapl:ProductsRevenue`). Extensions are parsed but not mapped into canonical fields by default — you'll see them as separate entries in the filing detail but they don't affect the canonical `revenue` number. This is intentional: extensions are by definition non-standard and aggregating them across filers would be meaningless.
+
+### Historical coverage breadth
+
+Normalisation is most reliable from **~2013 onwards**, when XBRL became mandatory for the full income statement and balance sheet. Pre-2013 filings are present but have lower mapping confidence — treat historical comparisons with pre-2013 data accordingly.
+
+### Period-end date alignment
+
+The canonical `fiscal_year` field is the year the reporting period *ends*, not the calendar year it was filed in. Apple's `fiscal_year: 2024` ended in September 2024 and was filed in November 2024. Don't confuse this with the calendar year of the filing date (`metadata.filed_at`).
+
+## See also
+
+- [SEC EDGAR dataset](/datasets/sec-edgar) — full endpoint list and coverage
+- [SEC financials recipe](/recipes/sec-financials) — end-to-end example
+- [API Reference — `/v1/us/sec/financials/fields`](/api-reference) — queryable mapping table

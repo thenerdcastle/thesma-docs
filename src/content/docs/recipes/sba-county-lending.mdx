@@ -1,12 +1,100 @@
 ---
 title: County lending volume and charge-off rate
-description: Lending volume and charge-off rate for a given US county.
+description: Pull SBA 7(a) lending aggregates for a US county — volume, loan count, average size, charge-off rate, jobs supported. Los Angeles County (FIPS 06037) as the worked example.
 ---
 
-:::note[Coming soon]
-This recipe — lending volume and charge-off rate for a county (e.g., Los Angeles County, FIPS 06037), with curl, Python SDK, and expected response shape — is in progress for a post-launch update.
+Get SBA 7(a) small-business lending aggregates for a single US county. The example uses **Los Angeles County, CA (FIPS 06037)** — large, dense coverage, and **not** affected by the Connecticut FIPS schema gap that makes CT counties unusable in v1.
 
-For now, see the **Small Business Administration → SBA Lending** section in the [API Reference](/api-reference).
+## Problem
 
-Avoid Connecticut counties for now — a 2022 FIPS schema change left ~6,408 CT loans currently unresolved at the county level. See [US SBA](/datasets/us-sba) for details.
-:::
+You want to know how active small-business lending is in a given county — how many loans, how much money, how big is the average loan, and what fraction is being charged off.
+
+## curl — latest quarter
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sba/counties/06037/lending" \
+  | jq '.data | {period, loan_count, total_amount, avg_loan_size, median_loan_size, charge_off_rate, jobs_supported}'
+```
+
+## Python SDK
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()
+
+lending = client.sba.counties("06037").lending()
+
+print(f"LA County — {lending.data.period}")
+print(f"  loans:        {lending.data.loan_count:,}")
+print(f"  volume:       ${lending.data.total_amount:,}")
+print(f"  avg size:     ${lending.data.avg_loan_size:,.0f}")
+print(f"  charge-off:   {lending.data.charge_off_rate:.1%}")
+print(f"  jobs supported: {lending.data.jobs_supported:,}")
+```
+
+## Expected response shape
+
+```json
+{
+  "data": {
+    "county_fips": "06037",
+    "county_name": "Los Angeles County, CA",
+    "state_fips": "06",
+    "period": "2025-Q4",
+    "loan_count": 3842,
+    "total_amount": 2187000000,
+    "avg_loan_size": 569000,
+    "median_loan_size": 245000,
+    "guaranteed_amount": 1640000000,
+    "avg_guarantee_pct": 0.75,
+    "jobs_supported": 24180,
+    "charge_off_count": 119,
+    "charge_off_rate": 0.031,
+    "charge_off_amount": 67800000
+  },
+  "metadata": {
+    "source": "SBA 7(a)",
+    "cadence": "quarterly",
+    "latest_period": "2025-Q4"
+  }
+}
+```
+
+Values drift quarter over quarter as new SBA data lands. Field types and names are stable.
+
+## Historical time series
+
+The default response is the latest quarter. For a time series, pass `from_period` and `to_period`:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sba/counties/06037/lending?from_period=2020-Q1&to_period=2025-Q4" \
+  | jq '.data[] | {period, loan_count, charge_off_rate}'
+```
+
+## Stable county targets
+
+| FIPS | County |
+|---|---|
+| `06037` | Los Angeles County, CA |
+| `17031` | Cook County, IL (Chicago) |
+| `48201` | Harris County, TX (Houston) |
+| `36061` | New York County, NY (Manhattan) |
+| `04013` | Maricopa County, AZ (Phoenix) |
+
+**Avoid all Connecticut counties** in v1 examples. The 2022 FIPS schema change left ~6,408 CT loans unresolved at the county level — aggregates for CT counties are missing loans that exist in state-level aggregates. See [US SBA → Known limitations](/datasets/us-sba).
+
+## Gotchas
+
+- **Quarterly cadence.** Unlike BLS CES (monthly), SBA aggregates are quarterly. Periods are formatted `YYYY-Qq` (e.g., `2025-Q4`).
+- **Charge-off rate is dollar-weighted.** `charge_off_rate = charge_off_amount / total_amount`, not `charge_off_count / loan_count`. Large single-loan charge-offs move the rate more than small ones.
+- **Jobs-supported is self-reported by borrowers.** SBA publishes it; Thesma passes it through unchanged. Treat it as directional.
+- **County name may include a state suffix** (e.g., `"Los Angeles County, CA"`). Parse on the comma if you need the bare county name.
+
+## See also
+
+- [US SBA dataset](/datasets/us-sba) — full endpoint list and the Connecticut FIPS limitation
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — the SEC-side flagship; `?include=lending_context` exposes exactly these numbers on a company's HQ county
+- [API Reference — `/v1/us/sba/counties/{fips}/lending`](/api-reference) — full parameter schema

@@ -1,14 +1,211 @@
 ---
 title: SEC EDGAR
-description: SEC EDGAR dataset — 10-K / 10-Q financials, Form 4 insider trades, 8-K events, 13F holdings, DEF 14A compensation.
+description: US public-company filings — 10-K/10-Q financials, Form 4 insider trades, 8-K events, 13F holdings, DEF 14A compensation, screener filters.
 ---
 
-:::note[Coming soon]
-The full SEC EDGAR dataset guide — coverage, endpoint table, known limitations (including the IFRS 20-F gap targeted for Q2 2026), cross-dataset enrichment (`?include=labor_context`, `?include=lending_context`), and screener filters — is in progress for a post-launch update.
+The SEC EDGAR dataset is the core of Thesma. It covers every US public company on NYSE and NASDAQ, normalises XBRL financials to canonical fields, extracts structured data from narrative sections of filings, and cross-indexes everything so you can pivot from a company to its filings, financials, ratios, events, insider trades, and institutional holders in one hop.
 
-For now, see the **SEC EDGAR** section in the [API Reference](/api-reference) for the full endpoint list, or start with the [SEC financials Quickstart](/getting-started/quickstart) for a worked example.
-:::
+## Coverage
 
-The dataset covers every US public company on NYSE and NASDAQ — 6,005 companies, ~98% of investable US market cap.
+| Dimension | Value |
+|---|---|
+| Companies | 6,005 active US public companies |
+| Listing scope | Every US-listed NYSE + NASDAQ issuer |
+| Market cap coverage | ~98% of investable US market cap |
+| Filings | 10-K, 10-Q, 8-K, Form 4, 13F-HR, DEF 14A, SC 13D/G, and more |
+| Historical financials | Typically 10+ years of annuals; quarterly since IPO or normalisation start |
+| Normalisation | XBRL → canonical field names across filers (see [XBRL mapping](/datasets/sec-edgar/xbrl-mapping)) |
 
-See [XBRL mapping](/datasets/sec-edgar/xbrl-mapping) for how SEC XBRL filings are normalised to canonical fields.
+Ticker symbols and CIK numbers are interchangeable in every endpoint path. The `{cik}` path parameter accepts either — `/v1/us/sec/companies/AAPL` and `/v1/us/sec/companies/0000320193` return the same company.
+
+## Known limitations
+
+Shipped honestly. Each of these is a documented gap, not a surprise.
+
+- **IFRS 20-F filers have limited historical coverage.** Foreign private issuers that file 20-F (Spotify, Nu Holdings, GlobalFoundries, and others) are partially normalised in the canonical financials schema. Native-currency IFRS support is targeted for **Q2 2026**. Raw 20-F filings are reachable via `/v1/us/sec/filings`; canonical financial-field coverage lags. See [XBRL mapping](/datasets/sec-edgar/xbrl-mapping).
+- **Delisted and acquired companies are included** as historical records but are not eligible for `?include=labor_context` enrichment (the BLS industry tie-out requires the company to be actively classified).
+- **Issuers in registration (S-1) without a first-filed 10-K/10-Q** appear in `/v1/us/sec/companies` but have empty `/financials` until their first periodic filing lands.
+
+## Endpoints
+
+Each row below is a tag group from the OpenAPI spec. See the [API Reference](/api-reference) for full parameter and response schemas.
+
+### Companies
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/companies` | List companies (paginated). Filter by `ticker`, `search`, `sic`, `tier`, `state_fips`, `county_fips`, `exchange`, `domicile`. |
+| GET | `/v1/us/sec/companies/{cik}` | Company detail — identity fields, optional `?include=labor_context,lending_context` enrichment. |
+| GET | `/v1/us/sec/companies/{cik}/filings` | All filings for one company (paginated). |
+
+### Filings
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/filings` | List filings across companies (paginated). |
+| GET | `/v1/us/sec/filings/{accession_number}` | Filing detail — filed date, form type, source URL. |
+| GET | `/v1/us/sec/filings/{accession_number}/content` | Full text content of the filing. |
+
+### Financials
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/financials/fields` | Full list of canonical financial fields and their XBRL source tags. |
+| GET | `/v1/us/sec/companies/{cik}/financials` | Income statement, balance sheet, cash flow per period. |
+| GET | `/v1/us/sec/companies/{cik}/financials/{metric}` | Time series for a single canonical metric (e.g., `revenue`, `net_income`). |
+
+### Ratios
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/companies/{cik}/ratios` | Computed ratios — margins, returns, leverage, growth YoY. |
+| GET | `/v1/us/sec/companies/{cik}/ratios/{ratio}` | Time series for a single ratio. |
+
+### Events
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/events` | Events across companies, categorised (earnings, leadership, governance, regulatory, material agreements, etc.). |
+| GET | `/v1/us/sec/events/categories` | Event-category catalogue. |
+| GET | `/v1/us/sec/companies/{cik}/events` | Events for one company. |
+
+### Insider activity
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/insider-trades` | Form 4 transactions across companies. |
+| GET | `/v1/us/sec/companies/{cik}/insider-trades` | Form 4 transactions for one company. |
+| GET | `/v1/us/sec/companies/{cik}/insider-holdings` | Current insider beneficial-ownership snapshot. |
+
+### Institutional holdings
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/companies/{cik}/institutional-holders` | 13F holders of one company. |
+| GET | `/v1/us/sec/companies/{cik}/institutional-changes` | Period-over-period changes in 13F holders. |
+| GET | `/v1/us/sec/funds` | 13F filers (institutional funds). |
+| GET | `/v1/us/sec/funds/{cik}/holdings` | A fund's reported holdings. |
+| GET | `/v1/us/sec/funds/{cik}/holding-changes` | A fund's period-over-period position changes. |
+
+### Compensation and governance
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/companies/{cik}/executive-compensation` | Named-executive pay breakdown + CEO-to-median-worker ratio. |
+| GET | `/v1/us/sec/companies/{cik}/board` | Board members from DEF 14A. |
+| GET | `/v1/us/sec/companies/{cik}/proxy-votes` | Proxy vote results. |
+| GET | `/v1/us/sec/companies/{cik}/beneficial-ownership` | SC 13D/13G beneficial-ownership stakes. |
+| GET | `/v1/us/sec/beneficial-ownership` | Beneficial-ownership events across companies. |
+
+### Filing sections (text extraction)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/filings/{accession_number}/sections` | List sections extracted from one filing. |
+| GET | `/v1/us/sec/filings/{accession_number}/sections/{section_type}` | One named section (e.g., Risk Factors, MD&A). |
+| GET | `/v1/us/sec/filings/{accession_number}/sections/{section_type}/changes` | Period-over-period diffs of a section's text. |
+| GET | `/v1/us/sec/companies/{cik}/sections` | Cross-filing section index for one company. |
+| GET | `/v1/us/sec/companies/{cik}/sections/{section_type}/entities` | Entities (people, companies, places) mentioned in a section across filings. |
+| GET | `/v1/us/sec/sections/search` | Semantic search across extracted section text. |
+
+### Screener
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/screener` | Multi-factor company screener across SEC, BLS, and SBA filters. |
+
+### Data export
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sec/export/companies` | Bulk export. |
+| GET | `/v1/us/sec/export/financials` | Bulk export. |
+| GET | `/v1/us/sec/export/insider-trades` | Bulk export. |
+| GET | `/v1/us/sec/export/events` | Bulk export. |
+| GET | `/v1/us/sec/export/ratios` | Bulk export. |
+| GET | `/v1/us/sec/export/holdings` | Bulk export. |
+| GET | `/v1/us/sec/export/compensation` | Bulk export. |
+| GET | `/v1/us/sec/export/beneficial-ownership` | Bulk export. |
+
+Exports stream CSV or JSONL and are available on the **Business** tier and above.
+
+## Cross-dataset enrichment
+
+Two `include` parameters add data from adjacent verticals without a second API call. Both work on `/v1/us/sec/companies/{cik}` and on list endpoints that return company context.
+
+### `?include=labor_context`
+
+Adds a `labor_context` object with BLS industry data for the company's NAICS industry — current employment, YoY change, average hourly earnings, YoY wage change, and the CES series vintage.
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL?include=labor_context"
+```
+
+See the [flagship recipe](/recipes/cross-dataset-labor-context) for the full worked example.
+
+### `?include=lending_context`
+
+Adds a `lending_context` object with SBA 7(a) lending aggregates for the company's headquarters county — loan count, total amount, charge-off rate, and jobs supported.
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL?include=lending_context"
+```
+
+Both enrichments can be combined: `?include=labor_context,lending_context`.
+
+## Screener filters
+
+The `/v1/us/sec/screener` endpoint supports multi-factor filtering across all three datasets. Common SEC-side filters:
+
+- `ticker`, `cik`, `sic`, `exchange`, `domicile`, `state_fips`, `county_fips`
+- Financial bands: `revenue_min`/`revenue_max`, `net_income_min`/`max`, `market_cap_min`/`max`, `eps_min`/`max`
+- Ratio bands: `gross_margin_min`/`max`, `roe_min`/`max`, `debt_to_equity_max`
+- Growth bands: `revenue_yoy_min`/`max`, `net_income_yoy_min`/`max`
+- Cross-dataset: `industry_employment_yoy_min` (BLS), `county_charge_off_rate_max` (SBA)
+
+Run `curl https://api.thesma.dev/openapi.json | jq '.paths["/v1/us/sec/screener"]'` for the full parameter list — the screener's parameter surface is large and additive.
+
+## Response envelopes
+
+All list endpoints return the standard envelope:
+
+```json
+{
+  "data": [ /* array of entities */ ],
+  "pagination": {
+    "page": 1,
+    "per_page": 25,
+    "total": 6005,
+    "total_pages": 241
+  }
+}
+```
+
+Detail endpoints return a single entity wrapped in `data`:
+
+```json
+{
+  "data": { "ticker": "AAPL", "...": "..." }
+}
+```
+
+See [Pagination](/getting-started/pagination) for iteration patterns and the semantic-search footnote.
+
+## Example: AAPL financials snapshot
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=1" \
+  | jq '.data[0] | {fiscal_year, revenue, gross_profit, operating_income, net_income}'
+```
+
+Returns a single-period snapshot. For multi-year time series, use the `{metric}` endpoint or iterate with `&offset=` / `&page=`. The [SEC financials recipe](/recipes/sec-financials) walks through a 5-year pull end-to-end.
+
+## See also
+
+- [XBRL mapping](/datasets/sec-edgar/xbrl-mapping) — how filings are normalised to canonical fields
+- [SEC financials recipe](/recipes/sec-financials) — 5 years of annual financials, curl + Python
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — flagship enrichment
+- [API Reference — SEC EDGAR](/api-reference) — full schema detail

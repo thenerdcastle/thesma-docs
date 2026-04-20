@@ -72,7 +72,7 @@ for company in client.sec.companies.paginate(per_page=100):
 
 ## Semantic search — different shape
 
-The semantic-search endpoint `/v1/us/sec/search` does **not** return a `total` count (the scoring model ranks results in streaming mode without a count step). Its pagination envelope looks like:
+The semantic-search endpoint `/v1/us/sec/sections/search` does **not** return a `total` count (the scoring model ranks results in streaming mode without a count step). Its pagination envelope looks like:
 
 ```json
 {
@@ -90,7 +90,7 @@ Use `has_next` to drive your iteration loop on search results, not `total_pages`
 ```python
 page = 1
 while True:
-    results = client.sec.search("electric vehicle supply chain", page=page, per_page=25)
+    results = client.sec.sections.search("electric vehicle supply chain", page=page, per_page=25)
     for hit in results.data:
         print(hit.accession_number, hit.score)
     if not results.pagination.has_next:

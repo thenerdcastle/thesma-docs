@@ -1,11 +1,9 @@
 ---
 title: Python SDK
-description: Official Python SDK for the Thesma API. pip install thesma.
+description: Official Python SDK for the Thesma API. Sync and async clients, automatic retries, pagination helpers, bulk-export streaming, typed Pydantic models.
 ---
 
-:::note[Coming soon]
-The full Python SDK guide — sync (`ThesmaClient`) and async (`AsyncThesmaClient`) clients, pagination helpers, automatic retry, bulk export streaming (`ExportStream`), typed Pydantic response models, and typed error classes — is in progress for a post-launch update.
-:::
+The official Python SDK wraps every HTTP endpoint with a typed, ergonomic API. Install with `pip`, pass your key via an environment variable, and you're done.
 
 ## Install
 
@@ -13,37 +11,194 @@ The full Python SDK guide — sync (`ThesmaClient`) and async (`AsyncThesmaClien
 pip install thesma
 ```
 
-## Quickstart
+Python 3.10+. Ships the CLI as a side effect — see [CLI](/clients/cli).
+
+## Authenticate
+
+Prefer the environment variable:
+
+```bash
+export THESMA_API_KEY="gd_live_..."
+```
 
 ```python
-import os
 from thesma import ThesmaClient
 
 client = ThesmaClient()  # reads THESMA_API_KEY from the environment
+```
 
-# List public companies
-companies = client.sec.companies.paginate(per_page=100)
-for c in companies:
-    print(c.ticker, c.name)
+Or pass it explicitly:
 
-# Get financials for AAPL
+```python
+client = ThesmaClient(api_key="gd_live_...")
+```
+
+See [Authentication](/getting-started/authentication) for the key format and error shapes.
+
+## Sync client
+
+`ThesmaClient` is the default — synchronous, suitable for scripts, notebooks, and most production workloads.
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()
+
+# Single company
+apple = client.sec.companies("AAPL").get()
+print(apple.data.ticker, apple.data.cik)
+
+# Financials history
 financials = client.sec.companies("AAPL").financials(period="annual", limit=5)
 for row in financials.data:
     print(row.fiscal_year, row.revenue, row.net_income)
 ```
 
-For the async client:
+## Async client
+
+`AsyncThesmaClient` exposes the same surface with `await`-able methods. Use it when you're calling the API from an async web framework (FastAPI, Litestar, Starlette) or when you need to fan out many requests concurrently.
 
 ```python
+import asyncio
 from thesma import AsyncThesmaClient
 
 async def main():
     async with AsyncThesmaClient() as client:
-        financials = await client.sec.companies("AAPL").financials(period="annual", limit=5)
-        print(financials.data[0].revenue)
+        # Fan out across multiple companies concurrently
+        tickers = ["AAPL", "MSFT", "GOOG", "META", "AMZN"]
+        results = await asyncio.gather(*[
+            client.sec.companies(t).financials(period="annual", limit=1)
+            for t in tickers
+        ])
+        for t, r in zip(tickers, results):
+            print(f"{t} FY{r.data[0].fiscal_year}  revenue=${r.data[0].revenue:,}")
+
+asyncio.run(main())
 ```
+
+`async with` ensures the underlying connection pool is closed cleanly.
+
+## Pagination — `paginate()` helper
+
+Every list endpoint has a `.paginate()` method that yields one entity at a time, transparently fetching pages as needed. Memory usage stays flat regardless of total size.
+
+```python
+# Iterate all 6,005 US public companies
+for company in client.sec.companies.paginate(per_page=100):
+    print(company.ticker, company.name)
+
+# Iterate all 13F holders of AAPL
+for holder in client.sec.companies("AAPL").institutional_holders.paginate():
+    print(holder.rank, holder.fund_name, holder.shares)
+```
+
+`paginate()` honors the default and max `per_page` values from [Pagination](/getting-started/pagination) — pass `per_page=100` for the max.
+
+## Automatic retries with backoff
+
+The SDK retries on transient failures by default:
+
+- `429 Too Many Requests` — honors `Retry-After` exactly (wait the number of seconds the server asked for, then retry).
+- `500 / 502 / 503 / 504` — exponential backoff with jitter, up to 5 attempts.
+- Network errors (DNS, connection reset, TLS) — retry 3 times.
+
+Customise via the client constructor:
+
+```python
+client = ThesmaClient(
+    max_retries=3,
+    retry_backoff_factor=0.5,  # seconds
+)
+```
+
+Set `max_retries=0` to disable.
+
+## Bulk export streaming — `ExportStream`
+
+For pulling tens of thousands of records without buffering everything in memory, use the export endpoints and stream:
+
+```python
+with client.sec.export.financials.stream(period="annual", format="jsonl") as stream:
+    for row in stream:
+        process(row)  # row is a typed Pydantic model
+```
+
+Export streams are available on the **Business** tier and above. See [US SEC → Data export](/datasets/sec-edgar#data-export) for the endpoint catalogue.
+
+## Typed Pydantic models
+
+Every response is parsed into a Pydantic model. You get attribute access, type checking, and round-trippable serialisation:
+
+```python
+financials = client.sec.companies("AAPL").financials(period="annual", limit=1)
+
+row = financials.data[0]
+print(row.fiscal_year)                  # int
+print(row.revenue)                       # int (USD, no decimals)
+print(row.eps_diluted)                   # float
+
+# Serialise to dict for downstream use
+row.model_dump()                         # canonical Pydantic dump
+```
+
+## Typed error classes
+
+All API errors raise typed exceptions you can catch specifically:
+
+```python
+from thesma import (
+    ThesmaClient,
+    UnauthorizedError,
+    NotFoundError,
+    RateLimitError,
+    ValidationError,
+    ServerError,
+)
+
+try:
+    client.sec.companies("FAKETICKERZZZ").get()
+except NotFoundError as e:
+    print("Ticker not found:", e.error_code)
+except RateLimitError as e:
+    print("Rate limited, retry after:", e.retry_after, "seconds")
+except ServerError:
+    print("Upstream 5xx — the SDK already retried; it's still failing")
+```
+
+All exceptions carry `.status_code`, `.error_code`, `.message`, and `.details` attributes matching the [canonical error shape](/getting-started/errors).
+
+## Cross-dataset enrichment
+
+The `include=` parameter from the HTTP API is exposed as a keyword argument:
+
+```python
+apple = client.sec.companies("AAPL").get(include=["labor_context", "lending_context"])
+print(apple.data.labor_context.industry_employment)
+print(apple.data.lending_context.county_charge_off_rate)
+```
+
+See the [cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context).
+
+## Configuration reference
+
+| Argument | Default | Purpose |
+|---|---|---|
+| `api_key` | `$THESMA_API_KEY` | API key. Required if env var is absent. |
+| `base_url` | `https://api.thesma.dev` | Override for self-hosted or testing. |
+| `timeout` | `30` | Per-request timeout in seconds. |
+| `max_retries` | `5` | Max retry attempts on transient failures. |
+| `retry_backoff_factor` | `0.5` | Exponential backoff base. |
+| `user_agent` | `thesma-python/<version>` | Customisable for attribution. |
 
 ## Links
 
 - **PyPI:** [pypi.org/project/thesma](https://pypi.org/project/thesma/)
-- **Source:** [github.com/thenerdcastle/thesma-python](https://github.com/thenerdcastle/thesma-python)
+- **Source:** [github.com/thesma-dev/thesma-python](https://github.com/thesma-dev/thesma-python)
+- **Changelog:** [github.com/thesma-dev/thesma-python/blob/main/CHANGELOG.md](https://github.com/thesma-dev/thesma-python/blob/main/CHANGELOG.md)
+- **Issues:** [github.com/thesma-dev/thesma-python/issues](https://github.com/thesma-dev/thesma-python/issues)
+
+## See also
+
+- [CLI](/clients/cli) — ships with the Python SDK
+- [Quickstart](/getting-started/quickstart) — five-minute zero-to-first-call walk-through
+- [Authentication](/getting-started/authentication) — key format and header options

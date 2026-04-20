@@ -1,28 +1,184 @@
 ---
 title: CLI
-description: The thesma CLI ships with the Python SDK. Resource-scoped commands, env-var auth.
+description: The thesma CLI ships with the Python SDK. Resource-scoped commands, env-var auth, CSV and JSON output.
 ---
 
-:::note[Coming soon]
-The full CLI reference — resource-scoped commands (`thesma companies list`, `thesma financials get AAPL`, `thesma export financials --since 2024-01-01 --format csv`, etc.) and the full command surface across companies, filings, financials, ratios, events, holdings, insider trades, BLS, Census, SBA, screener, and export — is in progress for a post-launch update.
-:::
+The `thesma` CLI ships with the Python SDK — no separate install. It mirrors every SDK method as a resource-scoped command, reads your API key from the environment, and defaults to human-readable table output with `--format json` / `--format csv` escape hatches for scripting.
 
 ## Install
-
-The CLI ships with the Python SDK — no separate install.
 
 ```bash
 pip install thesma
 thesma --help
 ```
 
-## Auth
+The `thesma` command appears on `$PATH` as soon as the package is installed. Requires Python 3.10+.
 
-The CLI reads `THESMA_API_KEY` from the environment:
+## Authenticate
 
 ```bash
 export THESMA_API_KEY="gd_live_..."
-thesma companies list --ticker AAPL
 ```
 
-No `--key` flag — use the env var.
+The CLI reads `THESMA_API_KEY` from the environment. There is deliberately no `--key` flag — keys in shell history are a footgun.
+
+## Command shape
+
+Every command follows `thesma <resource> <verb> [target] [flags]`:
+
+```bash
+thesma companies list
+thesma companies get AAPL
+thesma financials get AAPL --period annual --limit 5
+thesma insider-trades list AAPL
+```
+
+Run `thesma <resource> --help` for per-resource usage.
+
+## Resources
+
+### SEC EDGAR
+
+```bash
+thesma companies list                             # paginated list
+thesma companies get AAPL                         # single company
+thesma companies get AAPL --include labor,lending # with enrichment
+thesma filings list --cik AAPL --form 10-K        # filings
+thesma financials get AAPL --period annual --limit 5
+thesma ratios get AAPL
+thesma events list --cik AAPL --category earnings
+thesma insider-trades list AAPL
+thesma holdings list AAPL                         # institutional holders
+thesma compensation get AAPL                      # executive compensation
+thesma screener run --revenue-min 1000000000 --roe-min 0.15
+thesma sections search "electric vehicle supply chain"
+thesma funds list                                 # 13F filers
+```
+
+### US Census
+
+```bash
+thesma census places get 35620                    # MSA by FIPS
+thesma census metrics list                        # all 26 metrics
+thesma census metrics get median_household_income --fips 35620
+```
+
+### US BLS
+
+```bash
+thesma bls industries list
+thesma bls industries employment 3254 --from 2020-01 --to 2025-12
+thesma bls states unemployment 06                 # California LAUS
+thesma bls occupations wages 15-1252              # Software developers
+```
+
+### US SBA
+
+```bash
+thesma sba counties lending 06037                 # Los Angeles County
+thesma sba states lending 06
+thesma sba industries lending 236220
+thesma sba lenders list --limit 20
+```
+
+### Bulk export
+
+```bash
+thesma export financials --since 2024-01-01 --format csv > financials.csv
+thesma export insider-trades --since 2024-01-01 --format jsonl > trades.jsonl
+thesma export companies --format csv > companies.csv
+```
+
+Exports stream — they start writing output immediately, so the file grows as the data arrives. Safe for tens of thousands of records.
+
+## Output formats
+
+Default is a human-readable table; `--format json` or `--format csv` for scripting.
+
+```bash
+# Human-readable (default)
+thesma financials get AAPL --period annual --limit 3
+
+# JSON
+thesma financials get AAPL --period annual --limit 3 --format json
+
+# CSV (pipe to a file or downstream tool)
+thesma financials get AAPL --period annual --limit 3 --format csv > apple.csv
+
+# JSONL (one record per line, pipe-friendly)
+thesma companies list --format jsonl | jq -r '.ticker' | sort -u | head
+```
+
+## Cross-dataset enrichment
+
+The `--include` flag mirrors the HTTP `?include=` parameter. Pass a comma-separated list:
+
+```bash
+thesma companies get AAPL --include labor,lending
+```
+
+The enriched `labor_context` and `lending_context` fields render inline in table output; in JSON output they're nested objects.
+
+## Pagination
+
+List commands auto-paginate when you pipe output — iteration is transparent. Limit with `--limit`:
+
+```bash
+# First 500 companies
+thesma companies list --limit 500 --format jsonl | wc -l
+
+# All companies (auto-paginates)
+thesma companies list --format jsonl | wc -l   # ~6005
+```
+
+## Rate-limit awareness
+
+The CLI respects `Retry-After` headers on 429s, prints a progress line when waiting, and retries on 5xx with exponential backoff. Nothing to configure — it matches the SDK's default behavior.
+
+If you want to abort early instead of retrying, set `THESMA_NO_RETRY=1`.
+
+## Useful recipes
+
+**Get all 13F holdings of Berkshire Hathaway:**
+
+```bash
+thesma funds get 0001067983 --include holdings --format jsonl \
+  | jq -r '.holding_ticker, .shares, .market_value'
+```
+
+**Screen for profitable pharma companies:**
+
+```bash
+thesma screener run \
+  --sic 2834 \
+  --roe-min 0.15 \
+  --revenue-min 100000000 \
+  --format csv > screen.csv
+```
+
+**Pull monthly employment for semiconductors (NAICS 3344) over 10 years:**
+
+```bash
+thesma bls industries employment 3344 \
+  --from 2015-01 --to 2025-12 \
+  --format csv > semi.csv
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success |
+| `1` | Generic error |
+| `2` | Validation error (bad flag, missing argument) |
+| `3` | Auth error (missing / invalid key) |
+| `4` | Rate limited (after retries exhausted) |
+| `5` | Network error (after retries exhausted) |
+
+Safe to use in shell pipelines with `set -e`.
+
+## See also
+
+- [Python SDK](/clients/python-sdk) — the CLI is a thin wrapper over the SDK
+- [Authentication](/getting-started/authentication) — `gd_live_` key format
+- [Quickstart](/getting-started/quickstart) — zero-to-first-call in five minutes

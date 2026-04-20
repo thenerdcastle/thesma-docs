@@ -1,22 +1,122 @@
 ---
 title: US BLS
-description: Bureau of Labor Statistics — CES industry employment, QCEW county wages, OEWS occupation wages, JOLTS turnover, LAUS state unemployment.
+description: Bureau of Labor Statistics — CES industry employment, QCEW county wages, OEWS occupation wages, JOLTS turnover, LAUS state unemployment. Labor-context enrichment on SEC filings.
 ---
 
-:::note[Coming soon]
-The full US BLS dataset guide — endpoint table, cross-dataset enrichment (`?include=labor_context` on SEC filings), screener filters, and known limitations — is in progress for a post-launch update.
+Five Bureau of Labor Statistics surveys, exposed as standalone endpoints and as `?include=labor_context` enrichment on SEC filings. The US BLS dataset is what makes cross-dataset queries ("what's Apple's headcount trend vs. their industry?") a single API call instead of three.
 
-For now, see the **Bureau of Labor Statistics** section in the [API Reference](/api-reference) for the full endpoint list, including the recently shipped LAUS / BLS States endpoints.
-:::
+## Coverage
 
-### Covered
+| Survey | Frequency | Geo | What it measures |
+|---|---|---|---|
+| **CES** (Current Employment Statistics) | Monthly | National industry | Employment, average hourly earnings, hours worked by NAICS. Seasonally adjusted. |
+| **QCEW** (Quarterly Census of Employment and Wages) | Quarterly | County × NAICS | Employment counts and wage totals by county and industry. |
+| **OEWS** (Occupational Employment and Wage Statistics) | Annual | National + metro | Employment and wages by SOC occupation code. |
+| **JOLTS** (Job Openings and Labor Turnover Survey) | Monthly | Industry + state + region | Job openings, hires, quits, layoffs. |
+| **LAUS** (Local Area Unemployment Statistics) | Monthly | State + county | Unemployment rate, labor force participation. |
 
-- **CES** — industry employment (monthly, seasonally adjusted)
-- **QCEW** — county wages and employment by industry
-- **OEWS** — occupation-level wages and employment
-- **JOLTS** — job openings and labor turnover
-- **LAUS** — state-level unemployment rates
+## Known limitations
 
-### Not yet covered (post-1.0.0 roadmap)
+- **CPI, PPI, ECI, productivity, and NCS are not yet covered.** On the post-1.0.0 roadmap. If any of these are load-bearing for your use case, let us know at [hello@thesma.dev](mailto:hello@thesma.dev) — it informs prioritisation.
+- **Seasonal adjustment is survey-specific.** CES values are seasonally adjusted by default; QCEW is not (BLS doesn't publish seasonally-adjusted QCEW). Check the `adjustment` field on each response.
+- **County-level wage data has disclosure suppression.** QCEW suppresses values for very small industry-in-county cells to protect employer confidentiality. Expect occasional `null` fields at the county × NAICS intersection for thinly populated industries.
 
-CPI, PPI, ECI, productivity statistics, and NCS are **not** in the 1.0.0 release. If any of these are load-bearing for your use case, let us know at [hello@thesma.dev](mailto:hello@thesma.dev) — it informs prioritisation.
+## Endpoints
+
+### Industries (CES + employment trends)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/bls/industries` | List industries (NAICS) with BLS coverage. |
+| GET | `/v1/us/bls/industries/{naics}` | Industry detail. |
+| GET | `/v1/us/bls/industries/{naics}/employment` | Monthly employment time series (CES). |
+| GET | `/v1/us/bls/industries/{naics}/employment/latest` | Most recent month snapshot. |
+
+### Counties (QCEW + LAUS)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/bls/counties/{fips}/employment` | County employment by industry (QCEW). |
+| GET | `/v1/us/bls/counties/{fips}/wages` | County wage totals by industry (QCEW). |
+| GET | `/v1/us/bls/counties/{fips}/unemployment` | County unemployment rate (LAUS). |
+| GET | `/v1/us/bls/counties/compare` | Multi-county comparison on a single metric. |
+
+### States (LAUS)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/bls/states/{fips}/unemployment` | State unemployment rate and labor force (LAUS). |
+| GET | `/v1/us/bls/states/compare` | Multi-state comparison. |
+| GET | `/v1/us/bls/states/{fips}/turnover` | State-level JOLTS (openings, hires, quits, layoffs). |
+
+### Occupations (OEWS)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/bls/occupations` | List SOC occupations. |
+| GET | `/v1/us/bls/occupations/{soc}` | Occupation detail. |
+| GET | `/v1/us/bls/occupations/{soc}/wages` | Wage distribution (mean, 10th / 25th / 50th / 75th / 90th percentiles). |
+
+### Turnover (JOLTS)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/bls/industries/{naics}/turnover` | Industry-level openings, hires, quits, layoffs. |
+| GET | `/v1/us/bls/industries/{naics}/turnover/latest` | Most recent month snapshot. |
+| GET | `/v1/us/bls/regions/{region}/turnover` | Regional JOLTS (Northeast, South, Midwest, West). |
+| GET | `/v1/us/bls/turnover/by-size` | JOLTS by establishment size. |
+
+### Metrics catalogue
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/bls/metrics` | All BLS metrics across surveys with their dimensions. |
+| GET | `/v1/us/bls/metrics/{metric}` | Metric detail — source, unit, cadence, geographic level. |
+
+## Cross-dataset enrichment on SEC
+
+The `?include=labor_context` parameter on any SEC company or financials endpoint adds a `labor_context` object with BLS data for the company's NAICS industry:
+
+```json
+{
+  "labor_context": {
+    "naics": "3254",
+    "naics_title": "Pharmaceutical and Medicine Manufacturing",
+    "industry_employment": 177200,
+    "industry_employment_yoy": -0.018,
+    "industry_avg_hourly_earnings": 44.87,
+    "industry_earnings_yoy": 0.041,
+    "period": "2025-11",
+    "source": "BLS CES"
+  }
+}
+```
+
+See the [cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) for the full walk-through.
+
+## Screener filters
+
+The `/v1/us/sec/screener` endpoint supports BLS-side filters for finding companies whose industry labor conditions meet a threshold:
+
+- `industry_employment_yoy_min` / `_max`
+- `industry_earnings_yoy_min` / `_max`
+- `industry_openings_rate_min`
+- `state_unemployment_rate_max`
+- `county_unemployment_rate_max` (uses the company's HQ county)
+
+## Example: 5-year employment trend for pharmaceuticals (NAICS 3254)
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/bls/industries/3254/employment?from_date=2020-01&to_date=2025-12" \
+  | jq '.data[] | {period, employment, avg_hourly_earnings}'
+```
+
+See the [BLS industry-trend recipe](/recipes/bls-industry-trend) for the full example with Python SDK and expected response shape.
+
+## See also
+
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — the flagship
+- [BLS industry-trend recipe](/recipes/bls-industry-trend) — single-dataset walk-through
+- [SBA dataset](/datasets/us-sba) — adjacent lending data
+- [API Reference — Bureau of Labor Statistics](/api-reference) — full schema detail

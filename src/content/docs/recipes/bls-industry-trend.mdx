@@ -1,10 +1,109 @@
 ---
 title: Industry employment trend
-description: Pull 5-year employment trend for a specific industry (SIC 2834, Pharmaceutical Preparations).
+description: Pull a 5-year monthly employment trend for a single NAICS industry. Pharmaceutical manufacturing (NAICS 3254) as the worked example.
 ---
 
-:::note[Coming soon]
-This recipe — 5-year industry employment trend for SIC 2834 (Pharmaceutical Preparations), with curl, Python SDK, and expected response shape — is in progress for a post-launch update.
+Get a multi-year monthly employment time series for one NAICS industry. The example uses **NAICS 3254 — Pharmaceutical and Medicine Manufacturing** because it has dense coverage and tracks a sector with visible macro dynamics.
 
-For now, see the **Bureau of Labor Statistics → BLS Industries** section in the [API Reference](/api-reference).
-:::
+## Problem
+
+You want to plot employment and wages for a single industry, month by month, across several years. The BLS CES survey publishes this directly, and Thesma exposes it without the CSV-download dance.
+
+## curl — 5-year monthly series
+
+Use `from_date` and `to_date` (YYYY-MM) to bound the window:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/bls/industries/3254/employment?from_date=2020-01&to_date=2025-12" \
+  | jq '.data[] | {period, employment, avg_hourly_earnings}'
+```
+
+## Python SDK
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()
+
+trend = client.bls.industries("3254").employment(
+    from_date="2020-01",
+    to_date="2025-12",
+)
+
+for row in trend.data:
+    print(f"{row.period}  employment={row.employment:,}  wages=${row.avg_hourly_earnings:.2f}/hr")
+```
+
+## Expected response shape
+
+```json
+{
+  "data": [
+    {
+      "period": "2020-01",
+      "employment": 173100,
+      "employment_yoy": 0.021,
+      "avg_hourly_earnings": 37.42,
+      "earnings_yoy": 0.034,
+      "avg_weekly_hours": 41.2,
+      "adjustment": "SA",
+      "preliminary": false
+    },
+    {
+      "period": "2020-02",
+      "employment": 173400,
+      "employment_yoy": 0.022,
+      "avg_hourly_earnings": 37.55,
+      "earnings_yoy": 0.036,
+      "avg_weekly_hours": 41.1,
+      "adjustment": "SA",
+      "preliminary": false
+    }
+    /* ... 70 more monthly rows through 2025-12 ... */
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 72,
+    "total": 72,
+    "total_pages": 1
+  },
+  "metadata": {
+    "naics": "3254",
+    "naics_title": "Pharmaceutical and Medicine Manufacturing",
+    "source": "BLS CES",
+    "adjustment_default": "SA"
+  }
+}
+```
+
+Field types are stable; monthly counts drift as BLS publishes revisions to preliminary months.
+
+## NAICS codes with dense coverage
+
+Good targets for industry examples:
+
+| NAICS | Industry |
+|---|---|
+| `3254` | Pharmaceutical and Medicine Manufacturing |
+| `3344` | Semiconductor and Other Electronic Component Manufacturing |
+| `5112` | Software Publishers |
+| `5415` | Computer Systems Design and Related Services |
+| `5221` | Depository Credit Intermediation |
+| `6211` | Offices of Physicians |
+| `7225` | Restaurants and Other Eating Places |
+
+Avoid very granular 6-digit NAICS for monthly CES series — CES is published at aggregate NAICS levels (typically 3-4 digit). 6-digit granularity is available in QCEW (quarterly) but not CES.
+
+## Gotchas
+
+- **SIC vs NAICS.** BLS CES uses NAICS. If you have a SIC code (e.g., SIC 2834 for pharmaceutical preparations), map it to the corresponding NAICS (3254 is the closest pharma equivalent). The [BLS dataset page](/datasets/us-bls) has the endpoint catalogue.
+- **Seasonal adjustment default.** CES values default to seasonally-adjusted (`adjustment: "SA"`). For NSA series, pass `adjustment=NSA` explicitly. Don't mix SA and NSA in the same chart.
+- **Preliminary revisions.** The most-recent two or three months often have `preliminary: true`. Values get revised in subsequent releases — re-pull if you need final-revised data.
+- **YoY deltas are computed server-side.** `employment_yoy` compares this month to the same month a year prior. It's `null` for the first 12 months of a new NAICS code's coverage history.
+
+## See also
+
+- [BLS dataset](/datasets/us-bls) — full endpoint list + cross-dataset enrichment
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — tie this industry data to an SEC filing
+- [API Reference — `/v1/us/bls/industries/{naics}/employment`](/api-reference) — full parameter schema

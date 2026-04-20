@@ -1,20 +1,115 @@
 ---
 title: US SBA
-description: Small Business Administration 7(a) lending — 903k+ loans by lender, county, state, and NAICS industry.
+description: Small Business Administration 7(a) lending — 903k+ loans aggregated by county, state, and NAICS industry. Lender detail, charge-off rates, jobs supported. Lending-context enrichment on SEC filings.
 ---
 
-:::note[Coming soon]
-The full US SBA dataset guide — endpoint table, cross-dataset enrichment (`?include=lending_context` on SEC filings), screener filters, and known limitations — is in progress for a post-launch update.
+Small Business Administration 7(a) loan-guarantee data — aggregated across lenders, counties, states, and NAICS industries. This is the smallest of the four verticals by record count, but it's the most underused: it ties SEC-registered companies to the small-business credit activity in their HQ county, and it's the only public dataset with standardised charge-off outcomes at that granularity.
 
-For now, see the **Small Business Administration** section in the [API Reference](/api-reference) for the full endpoint list.
-:::
+## Coverage
 
-### Covered
+| Dimension | Value |
+|---|---|
+| Loan records | 903,000+ SBA 7(a) guaranteed loans |
+| Geographic aggregation | County (FIPS) × State (FIPS) × National |
+| Industry aggregation | NAICS codes |
+| Update cadence | Quarterly |
+| Lender detail | Individual lender records with portfolio-level metrics |
+| Outcome tracking | Charge-off counts, charge-off rates, charge-off amounts |
 
-- 903,000+ 7(a) small-business loans
-- Aggregates by lender, county, state, and NAICS industry
-- Charge-off and default outcomes
+## Known limitations
 
-### Known limitation — Connecticut FIPS schema change
+- **Connecticut county-level aggregates have a FIPS schema gap.** A 2022 FIPS schema change for Connecticut counties left approximately **6,408 loans** unresolved at the county level. These loans are visible in state-level aggregates for CT but do not roll up into any county-level CT aggregate. Fix targeted for the next data refresh. **Avoid using Connecticut counties as recipe targets or in production dashboards until the fix lands.**
+- **Loan-level records are not exposed.** The endpoints return aggregates, not individual loans. This is intentional — borrower-level PII is not redistributable. If you need loan-level data for licensed research, contact [hello@thesma.dev](mailto:hello@thesma.dev).
+- **7(a) only in 1.0.0.** SBA 504 (real-estate fixed-asset loans) and Microloan Program data are on the post-1.0.0 roadmap but not in the 1.0.0 release.
 
-A 2022 FIPS schema change for Connecticut counties left approximately **6,408 loans** unresolved at the county level in the current ingest. These loans are visible at the state level but do not roll up into county-level aggregates. Fix targeted for the next data refresh.
+## Endpoints
+
+### By county
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sba/counties/{fips}/lending` | County-level lending aggregates — volume, avg loan size, charge-off rate, jobs supported. |
+
+### By state
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sba/states/{fips}/lending` | State-level lending aggregates. |
+
+### By industry
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sba/industries/{naics}/lending` | NAICS-industry aggregates (national). |
+
+### Lenders
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sba/lenders` | List lenders, ranked by recent volume. |
+| GET | `/v1/us/sba/lenders/{lender_id}` | Lender detail — portfolio volume, geographic concentration, charge-off rate. |
+
+### Cross-cutting
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sba/lending/characteristics` | Loan-characteristic aggregates — size buckets, term buckets, guarantee-percentage buckets. |
+| GET | `/v1/us/sba/lending/outcomes` | Outcome aggregates — charge-off rates and amounts across dimensions. |
+
+### Metrics catalogue
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/sba/metrics` | All SBA metrics with their dimensions. |
+| GET | `/v1/us/sba/metrics/{metric}` | Metric detail. |
+
+## Cross-dataset enrichment on SEC
+
+The `?include=lending_context` parameter on any SEC company or financials endpoint adds a `lending_context` object with SBA aggregates for the company's headquarters county and its NAICS industry:
+
+```json
+{
+  "lending_context": {
+    "county_fips": "06037",
+    "county_name": "Los Angeles County, CA",
+    "county_loan_count": 3842,
+    "county_total_amount": 2187000000,
+    "county_charge_off_rate": 0.031,
+    "county_jobs_supported": 24180,
+    "naics": "3254",
+    "naics_title": "Pharmaceutical and Medicine Manufacturing",
+    "industry_loan_count": 412,
+    "industry_charge_off_rate": 0.024,
+    "period": "2025-Q4",
+    "source": "SBA 7(a)"
+  }
+}
+```
+
+The enrichment is geographic AND industry — the `county_*` fields describe the company's HQ county; the `industry_*` fields describe the company's NAICS regardless of geography.
+
+## Screener filters
+
+The `/v1/us/sec/screener` endpoint supports SBA-side filters for finding companies based on their county's or industry's lending conditions:
+
+- `county_charge_off_rate_max`
+- `county_loan_count_min`
+- `industry_charge_off_rate_max`
+- `industry_loan_count_min`
+
+## Example: Los Angeles County lending (FIPS 06037)
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sba/counties/06037/lending" \
+  | jq '.data | {period, loan_count, total_amount, avg_loan_size, charge_off_rate, jobs_supported}'
+```
+
+See the [SBA county-lending recipe](/recipes/sba-county-lending) for the full walk-through with the Python SDK.
+
+## See also
+
+- [SBA county-lending recipe](/recipes/sba-county-lending) — single-dataset walk-through
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — combining BLS + SEC (the flagship)
+- [SEC EDGAR dataset](/datasets/sec-edgar) — the enrichment's consumer side
+- [API Reference — Small Business Administration](/api-reference) — full schema detail

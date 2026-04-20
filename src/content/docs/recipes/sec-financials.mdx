@@ -1,10 +1,107 @@
 ---
 title: Fetch 5 years of annual financials
-description: Get 5 years of annual financials for a public company, with curl and the Python SDK.
+description: Pull 5 years of annual income statements for a US public company with curl and the Python SDK.
 ---
 
-:::note[Coming soon]
-This recipe — fetching 5 years of annual financials for a public company (AAPL), with curl, Python SDK, and expected response shape — is in progress for a post-launch update.
+Get a 5-year annual income-statement history for a single US public company. Apple (`AAPL`) as the worked example because its coverage is dense and the numbers are universally recognisable.
 
-For now, see the [Quickstart](/getting-started/quickstart) for a single-period fetch, or the **SEC EDGAR → Financials** section in the [API Reference](/api-reference).
-:::
+## Problem
+
+You want a 5-year revenue, operating income, and net income trend for a public company. Traditionally that's scraping 10-Ks or wrangling XBRL. With Thesma, it's one endpoint call per year (or a single time-series call per canonical metric).
+
+## curl — annual history
+
+`limit=5` gets the five most recent annual periods in one call:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=5" \
+  | jq '.data[] | {fiscal_year, revenue, operating_income, net_income}'
+```
+
+## Python SDK
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()
+
+financials = client.sec.companies("AAPL").financials(
+    period="annual",
+    limit=5,
+)
+
+for row in financials.data:
+    print(f"FY{row.fiscal_year}  revenue=${row.revenue:,}  net_income=${row.net_income:,}")
+```
+
+## Expected response shape
+
+Structurally exact at publication. Value-level numbers illustrative — exact figures drift as new filings land; field names and types are stable.
+
+```json
+{
+  "data": [
+    {
+      "fiscal_year": 2024,
+      "period_type": "annual",
+      "revenue": 391035000000,
+      "cost_of_revenue": 210352000000,
+      "gross_profit": 180683000000,
+      "research_and_development": 31370000000,
+      "selling_general_admin": 26097000000,
+      "operating_income": 123216000000,
+      "pre_tax_income": 123485000000,
+      "income_tax": 29749000000,
+      "net_income": 93736000000,
+      "eps_basic": 6.11,
+      "eps_diluted": 6.08,
+      "metadata": {
+        "accession_number": "0000320193-24-000123",
+        "filed_at": "2024-11-01",
+        "currency": "USD",
+        "source_tags": {
+          "revenue": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+          "net_income": "us-gaap:NetIncomeLoss"
+        },
+        "mapping_quality": "exact"
+      }
+    }
+    /* ... 4 more rows for FY2023, FY2022, FY2021, FY2020 ... */
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 5,
+    "total": 5,
+    "total_pages": 1
+  }
+}
+```
+
+## Alternative — single-metric time series
+
+If you only need one metric (say, revenue) across all available years, use the per-metric endpoint. It returns a longer history in one call:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials/revenue?period=annual" \
+  | jq '.data[] | {fiscal_year, value}'
+```
+
+Returns every annual revenue value on record — typically 10+ years for mature filers.
+
+## Gotchas
+
+- **`fiscal_year` is the year the period ends, not the filing calendar year.** Apple's FY2024 ended September 2024 and was filed November 2024. See [XBRL mapping → Period-end date alignment](/datasets/sec-edgar/xbrl-mapping) if this bites.
+- **Values are always reported in reporting currency.** US issuers report in USD. IFRS 20-F foreign filers may report in native currency; Thesma's canonical fields for those filers are partial until the Q2 2026 IFRS expansion — see [XBRL mapping → IFRS 20-F](/datasets/sec-edgar/xbrl-mapping).
+- **Quarterly has a different shape.** Swap `period=annual` for `period=quarterly` for 10-Q data. Quarterly fiscal quarters are labeled by fiscal year + quarter (`2024-Q4`, `2025-Q1`), not calendar quarter.
+
+## Stable example targets
+
+Apple (AAPL) and Microsoft (MSFT) are recommended when you need an example in a blog post or dashboard — universally recognised, dense coverage, no IFRS edge cases. Avoid foreign private issuers (Spotify, Nu Holdings, GlobalFoundries) for canonical-field examples until the Q2 2026 IFRS work lands.
+
+## See also
+
+- [SEC EDGAR dataset](/datasets/sec-edgar) — full endpoint list
+- [XBRL mapping](/datasets/sec-edgar/xbrl-mapping) — how values are normalised across filers
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — add BLS industry context to any financials response

@@ -1,14 +1,116 @@
 ---
 title: US Census
-description: US Census dataset — 26 demographic and economic metrics across 6 geographic levels.
+description: US Census Bureau demographic and economic data — 26 curated metrics across 6 geographic levels, with ACS 5-year and 1-year vintages. Metro-area demographics for SEC companies' HQ regions.
 ---
 
-:::note[Coming soon]
-The full US Census dataset guide — the 26 curated metrics, 6 geographic levels (nation, state, county, place, census tract, metro area), ACS 5-year and 1-year vintage coverage, and known limitations — is in progress for a post-launch update.
+A curated subset of US Census Bureau ACS data — 26 metrics picked for their usefulness in connecting public-company data to demographic and economic context. Exposed at six geographic levels so you can zoom from national aggregates down to a single census tract.
 
-For now, see the **US Census** section in the [API Reference](/api-reference) for the full endpoint list.
-:::
+## Coverage
 
-### Known limitation — MSAs only
+| Dimension | Value |
+|---|---|
+| Curated metrics | 26 |
+| Geographic levels | 6 (nation, state, county, place, census tract, metro area) |
+| Vintage | ACS 5-year estimates (primary), ACS 1-year estimates (where available for large geographies) |
+| Update cadence | Annual (ACS 5-year lags ~18 months) |
 
-Only Metropolitan Statistical Areas (MSAs) are covered in v1. **Micropolitan statistical areas are excluded** and will return 404 on CBSA lookups. Micropolitan coverage is on the post-1.0.0 roadmap.
+The metrics span seven categories:
+
+| Category | Metrics |
+|---|---|
+| **Demographics** | median_age, total_population, population_density |
+| **Population** | pct_under_18, pct_over_65 |
+| **Race / ethnicity** | pct_white, pct_black, pct_hispanic, pct_asian |
+| **Income** | median_household_income, per_capita_income, median_earnings, poverty_rate, gini_index |
+| **Housing** | median_home_value, median_rent, homeownership_rate, vacancy_rate, housing_units |
+| **Education** | pct_high_school_or_higher, pct_bachelors_or_higher, pct_graduate_degree |
+| **Employment** | labor_force_participation, unemployment_rate |
+| **Health insurance** | pct_uninsured, pct_private_insurance |
+
+All 26 are queryable at `/v1/us/census/metrics` for the live canonical names and vintage metadata.
+
+## Known limitations
+
+- **MSAs only for metro-area queries.** Only Metropolitan Statistical Areas (MSAs) are covered in v1. **Micropolitan Statistical Areas are excluded** and return 404 on CBSA lookups. Micropolitan coverage is on the post-1.0.0 roadmap.
+- **Margin of error (`moe`) is nullable.** Census publishes MOE for ACS estimates, but not every metric × geography pair has a published MOE. When absent, the field is `null` — don't assume MOE is always present.
+- **Search on `/v1/us/census/geographies?level=metro` is paginated alphabetically.** Filtering by `query="New York"` requires pagination past "N" if the result set is large. For production use, **prefer passing the known CBSA FIPS code directly** (e.g., 35620 for New York-Newark-Jersey City, 31080 for Los Angeles-Long Beach-Anaheim).
+- **Vintage lag.** ACS 5-year estimates land ~18 months after the survey window closes. The 2024 5-year release (covering 2020–2024) becomes available late 2025 / early 2026. Plan queries against the `latest_year` field rather than the current calendar year.
+
+## Endpoints
+
+### Geographies
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/census/geographies` | List all geographic levels and counts. |
+| GET | `/v1/us/census/geographies/{level}` | Paginated list of places at a level (e.g., all MSAs, all counties). |
+| GET | `/v1/us/census/geographies/{level}/{fips}` | One geography's detail — name, parent, child levels, coordinates. |
+
+Supported `level` values: `nation`, `state`, `county`, `place`, `tract`, `metro`.
+
+### Places (scoped metrics)
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/census/places/{fips}` | Place detail — name, parent hierarchy, population, area, coordinates. |
+| GET | `/v1/us/census/places/{fips}/metrics/{metric}` | A single metric for a place, with time series across available vintages. |
+| GET | `/v1/us/census/places/{fips}/metrics/{metric}/breakdown` | Sub-population breakdown for metrics that support it (e.g., income by race, education by age). |
+
+### Metrics catalogue
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/us/census/metrics` | All 26 curated metrics with unit, category, latest vintage. |
+| GET | `/v1/us/census/metrics/{metric}` | Metric detail — definition, source table, vintage coverage, supported geo levels. |
+| GET | `/v1/us/census/metrics/{metric}/compare` | Compare one metric across multiple places. |
+
+## Response envelope — place-scoped metrics
+
+Place-metric responses group values by category for readability:
+
+```json
+{
+  "data": {
+    "fips": "35620",
+    "name": "New York-Newark-Jersey City, NY-NJ-PA",
+    "level": "metro",
+    "vintage": "2024 (acs5)",
+    "metrics": {
+      "demographics": {
+        "median_age": { "value": 39.4, "unit": "years", "moe": 0.1 },
+        "total_population": { "value": 19567410, "unit": "persons", "moe": null }
+      },
+      "income": {
+        "median_household_income": { "value": 94500, "unit": "usd", "moe": 320 },
+        "per_capita_income": { "value": 52100, "unit": "usd", "moe": 180 }
+      }
+      /* ... other categories ... */
+    }
+  }
+}
+```
+
+## Cross-dataset use
+
+Census metrics are not currently bundled into the SEC `?include=` enrichment parameter — they're a separate query surface. For HQ-county demographic context, first get the company's `county_fips` from its SEC record, then:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/census/places/06037/metrics/median_household_income"
+```
+
+## Example: New York-Newark-Jersey City (CBSA 35620)
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/census/places/35620/metrics/median_household_income" \
+  | jq '.data | {fips, name, vintage, value: .metrics.income.median_household_income.value}'
+```
+
+See the [Census metro-profile recipe](/recipes/census-metro-profile) for the full walk-through.
+
+## See also
+
+- [Census metro-profile recipe](/recipes/census-metro-profile) — end-to-end example with a well-known MSA
+- [SEC EDGAR dataset](/datasets/sec-edgar) — SEC companies carry `county_fips` you can pivot off
+- [API Reference — US Census](/api-reference) — full schema detail
