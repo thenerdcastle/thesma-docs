@@ -1,0 +1,42 @@
+---
+// Rendered in Starlight's `components.SocialIcons` slot in the masthead.
+// Replaces the default social-icon row with a "Get API Key" CTA that deep-links
+// to the portal signup flow.
+---
+
+<a
+  href="https://portal.thesma.dev/signup"
+  target="_blank"
+  rel="noopener noreferrer"
+  class="get-api-key-cta"
+>
+  Get API Key
+</a>
+
+<style>
+  .get-api-key-cta {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.9rem;
+    background-color: var(--sl-color-accent);
+    color: white !important;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    transition: background-color 0.15s;
+    white-space: nowrap;
+    min-height: 40px;
+    box-sizing: border-box;
+  }
+  .get-api-key-cta:hover,
+  .get-api-key-cta:focus-visible {
+    background-color: #60a5fa;
+  }
+  @media (max-width: 50rem) {
+    .get-api-key-cta {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8125rem;
+    }
+  }
+</style>

@@ -1,0 +1,93 @@
+---
+title: Rate limits
+description: Tier table, 429 response shape, Retry-After semantics. All datasets included on every tier — tier controls rate only.
+---
+
+Every API response carries rate-limit headers so you can see where you stand without a separate usage call. Hitting a limit returns a structured 429.
+
+## Tiers
+
+| Tier | Price | Requests/day (enforced) | ~Monthly | Burst (req/sec) |
+|---|---|---|---|---|
+| Free | $0 | 250 | ~7,500 | 5 |
+| Starter | $29/mo | ~3,300 | 100,000 | 10 |
+| Pro | $99/mo | ~16,600 | 500,000 | 20 |
+| Business | $299/mo | ~66,600 | 2,000,000 | 40 |
+| Enterprise | Custom | Custom | Custom | Custom |
+
+### How enforcement actually works
+
+- **Requests/day** is the hard cap, reset at **midnight UTC**. This is the value the API enforces on every request.
+- **Burst (req/sec)** is a sliding-window per-second cap enforced in-process.
+- **~Monthly** is the daily cap multiplied by 30, rounded to the pricing-page number developers are used to seeing. It is **not** a separate rolling-monthly cap — there is no monthly accounting in the code. The daily cap resets; exceeding the daily cap returns 429 regardless of month-to-date usage.
+
+**All datasets are included on every tier.** Tier controls rate only, not dataset access. SEC EDGAR, US Census, US BLS, and US SBA are all available on Free.
+
+**Enterprise is a custom-contract tier** — not self-serve. If you need dedicated rate limits, SLAs, or private deployment, contact [sales@thesma.dev](mailto:sales@thesma.dev). Enterprise keys can exhibit behavior different from what this page documents (higher limits, custom endpoints), so don't be surprised.
+
+## Response headers
+
+Every response — success or error — includes rate-limit headers:
+
+```
+X-RateLimit-Limit: 250
+X-RateLimit-Remaining: 203
+X-RateLimit-Reset: 1714521600
+```
+
+- `X-RateLimit-Limit` — your tier's daily cap.
+- `X-RateLimit-Remaining` — requests left in the current UTC day.
+- `X-RateLimit-Reset` — Unix timestamp of the next reset (midnight UTC).
+
+## 429 response shape
+
+When you exceed a limit, the API returns **429 Too Many Requests** with a `Retry-After` header and a structured JSON body.
+
+### Daily cap exceeded
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 43200
+Content-Type: application/json
+```
+
+```json
+{
+  "error": "rate_limit_exceeded",
+  "error_code": "daily_limit_exceeded",
+  "message": "Daily request limit reached. Resets at midnight UTC.",
+  "details": {
+    "limit": 250,
+    "reset_at": "2026-04-21T00:00:00Z"
+  }
+}
+```
+
+`Retry-After` is the number of **seconds until midnight UTC**. Use it directly in a sleep-and-retry loop.
+
+### Burst limit exceeded
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 1
+```
+
+```json
+{
+  "error": "rate_limit_exceeded",
+  "error_code": "burst_limit_exceeded",
+  "message": "Per-second burst limit exceeded. Retry after 1 second."
+}
+```
+
+`Retry-After: 1` — wait one second and retry.
+
+## Client-side guidance
+
+- **Respect `Retry-After`.** Don't hammer on a 429 — it counts against your burst window.
+- **Check `X-RateLimit-Remaining` before large batches.** If you are close to the cap, batch over multiple days or upgrade.
+- **The Python SDK retries automatically** on 429 with exponential backoff and honors `Retry-After`. You generally don't need custom retry logic if you use the SDK.
+
+## Pricing
+
+Full tier details and checkout at [thesma.dev/pricing](https://thesma.dev/pricing). Upgrade and downgrade take effect at the next UTC day boundary.

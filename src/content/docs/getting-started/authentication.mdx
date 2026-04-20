@@ -1,0 +1,91 @@
+---
+title: Authentication
+description: How to pass your Thesma API key. Two header formats accepted. Key format details and error shapes.
+---
+
+All API endpoints require an API key. There is no anonymous tier — even the free plan requires a signed-up account and a generated key.
+
+## Getting a key
+
+Create a key at [portal.thesma.dev/dashboard](https://portal.thesma.dev/dashboard) → **API keys** → **Create key**. The plaintext key is shown once at creation; the server stores only a SHA-256 hash.
+
+## Passing the key
+
+The API accepts two header formats for the same key. Both are equivalent — the same middleware validates either.
+
+### `X-API-Key` (primary)
+
+The format shown in all marketing copy, blog posts, and recipes. Prefer this.
+
+```bash
+curl -H "X-API-Key: gd_live_a1b2c3d4..." \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL"
+```
+
+### `Authorization: Bearer`
+
+The conventional REST form. Accepted by the same middleware; same key.
+
+```bash
+curl -H "Authorization: Bearer gd_live_a1b2c3d4..." \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL"
+```
+
+Pick one per codebase and be consistent. Mixing them in the same application works but has no benefit.
+
+## Environment variable
+
+The Python SDK, CLI, and most integration examples read the key from the `THESMA_API_KEY` environment variable if it is set. Exporting the key in your shell is the least-friction option:
+
+```bash
+export THESMA_API_KEY="gd_live_a1b2c3d4..."
+```
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()  # reads THESMA_API_KEY from the environment
+```
+
+## Key format
+
+| Part | Value |
+|---|---|
+| Prefix | `gd_live_` |
+| Suffix | 128-bit random hex (32 characters) |
+| Total length | 40 characters |
+| Storage | Plaintext shown once at creation; server stores SHA-256 hash only |
+
+The `gd_live_` prefix identifies Thesma production keys. Don't paste keys starting with any other prefix (e.g., `th_live_` from older SDK versions) — those will fail authentication against the current API.
+
+## Error shapes
+
+### 401 Unauthorized — missing or invalid key
+
+```json
+{
+  "error": "unauthorized",
+  "error_code": "missing_api_key",
+  "message": "API key is missing. Pass it via the X-API-Key or Authorization: Bearer header."
+}
+```
+
+```json
+{
+  "error": "unauthorized",
+  "error_code": "invalid_api_key",
+  "message": "The provided API key is not valid or has been revoked."
+}
+```
+
+### 403 Forbidden — key is disabled or the account is suspended
+
+```json
+{
+  "error": "forbidden",
+  "error_code": "account_suspended",
+  "message": "This account is suspended. Contact support@thesma.dev."
+}
+```
+
+For the full error catalogue (status codes, `error_code` values, common causes), see [Errors](/getting-started/errors).

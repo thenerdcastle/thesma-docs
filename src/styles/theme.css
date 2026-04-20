@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-950: #0a0e1a;
+  --color-navy-900: #0f1629;
+  --color-navy-800: #162040;
+  --color-navy-700: #1e2d54;
+
+  --color-accent-blue: #3b82f6;
+  --color-accent-blue-hover: #60a5fa;
+  --color-accent-blue-light: #93c5fd;
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+
+  --color-border-subtle: #1e293b;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Map Starlight's design tokens to the thesma.dev palette so Starlight chrome
+   (masthead, sidebar, backgrounds, links) inherits the dark developer aesthetic. */
+:root {
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+
+  /* Starlight accent — CTAs, active nav items, link color */
+  --sl-color-accent-low: #162040;
+  --sl-color-accent: #3b82f6;
+  --sl-color-accent-high: #93c5fd;
+
+  /* Text */
+  --sl-color-white: #f1f5f9;
+  --sl-color-gray-1: #f1f5f9;
+  --sl-color-gray-2: #cbd5e1;
+  --sl-color-gray-3: #94a3b8;
+  --sl-color-gray-4: #64748b;
+  --sl-color-gray-5: #334155;
+  --sl-color-gray-6: #1e293b;
+  --sl-color-gray-7: #162040;
+  --sl-color-black: #0a0e1a;
+
+  /* Backgrounds */
+  --sl-color-bg: #0a0e1a;
+  --sl-color-bg-nav: #0a0e1a;
+  --sl-color-bg-sidebar: #0a0e1a;
+  --sl-color-bg-inline-code: #162040;
+  --sl-color-bg-accent: #162040;
+
+  /* Borders and hairlines */
+  --sl-color-hairline-light: #1e293b;
+  --sl-color-hairline: #1e293b;
+  --sl-color-hairline-shade: #162040;
+}
+
+/* Dark mode is the only mode — Starlight defaults respected, but force the
+   thesma palette regardless of the user's system preference. */
+:root[data-theme='light'] {
+  --sl-color-bg: #0a0e1a;
+  --sl-color-white: #f1f5f9;
+  --sl-color-gray-1: #f1f5f9;
+}
+
+/* Small refinements to match thesma.dev code blocks */
+.sl-markdown-content pre {
+  background-color: #0f1629 !important;
+  border: 1px solid #1e293b;
+}
+
+.sl-markdown-content code:not(pre code) {
+  background-color: #162040;
+  color: #f1f5f9;
+}

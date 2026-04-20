@@ -1,0 +1,101 @@
+---
+title: Pagination
+description: Page-based pagination with page and per_page query parameters. Envelope shape, defaults, and worked examples.
+---
+
+List endpoints use **page-based pagination** with `page` and `per_page` query parameters. The response envelope carries pagination metadata so you know when you've reached the last page.
+
+## Defaults
+
+| Parameter | Default | Max |
+|---|---|---|
+| `page` | `1` | unbounded (capped by `total_pages`) |
+| `per_page` | `25` | `100` |
+
+Requesting `per_page=150` returns a 400 with `error_code: invalid_parameter` — the cap is enforced, not silently clamped. Check the [API Reference](/api-reference) for any endpoint-specific overrides (most use the same defaults).
+
+## Response envelope
+
+```json
+{
+  "data": [
+    { "...": "..." },
+    { "...": "..." }
+  ],
+  "pagination": {
+    "page": 2,
+    "per_page": 25,
+    "total": 6005,
+    "total_pages": 241
+  }
+}
+```
+
+- `data` — array of results for the current page.
+- `pagination.page` — the page you requested.
+- `pagination.per_page` — the page size in effect.
+- `pagination.total` — total number of results across all pages.
+- `pagination.total_pages` — total number of pages at the current `per_page`.
+
+## Iterating all pages — curl
+
+```bash
+PAGE=1
+while : ; do
+  RESPONSE=$(curl -s -H "X-API-Key: $THESMA_API_KEY" \
+    "https://api.thesma.dev/v1/us/sec/companies?page=$PAGE&per_page=100")
+
+  echo "$RESPONSE" | jq -c '.data[]'
+
+  TOTAL_PAGES=$(echo "$RESPONSE" | jq '.pagination.total_pages')
+  if [ "$PAGE" -ge "$TOTAL_PAGES" ]; then
+    break
+  fi
+  PAGE=$((PAGE + 1))
+done
+```
+
+## Iterating all pages — Python SDK
+
+The SDK wraps the loop for you:
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()
+
+for company in client.sec.companies.paginate(per_page=100):
+    print(company.ticker, company.name)
+```
+
+`paginate()` streams results page-by-page; memory usage stays flat regardless of total size.
+
+## Semantic search — different shape
+
+The semantic-search endpoint `/v1/us/sec/search` does **not** return a `total` count (the scoring model ranks results in streaming mode without a count step). Its pagination envelope looks like:
+
+```json
+{
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "per_page": 25,
+    "has_next": true
+  }
+}
+```
+
+Use `has_next` to drive your iteration loop on search results, not `total_pages`:
+
+```python
+page = 1
+while True:
+    results = client.sec.search("electric vehicle supply chain", page=page, per_page=25)
+    for hit in results.data:
+        print(hit.accession_number, hit.score)
+    if not results.pagination.has_next:
+        break
+    page += 1
+```
+
+All other list endpoints use the standard envelope with `total` and `total_pages`.

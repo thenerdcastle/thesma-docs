@@ -1,0 +1,22 @@
+---
+title: US BLS
+description: Bureau of Labor Statistics — CES industry employment, QCEW county wages, OEWS occupation wages, JOLTS turnover, LAUS state unemployment.
+---
+
+:::note[Coming soon]
+The full US BLS dataset guide — endpoint table, cross-dataset enrichment (`?include=labor_context` on SEC filings), screener filters, and known limitations — is in progress for a post-launch update.
+
+For now, see the **Bureau of Labor Statistics** section in the [API Reference](/api-reference) for the full endpoint list, including the recently shipped LAUS / BLS States endpoints.
+:::
+
+### Covered
+
+- **CES** — industry employment (monthly, seasonally adjusted)
+- **QCEW** — county wages and employment by industry
+- **OEWS** — occupation-level wages and employment
+- **JOLTS** — job openings and labor turnover
+- **LAUS** — state-level unemployment rates
+
+### Not yet covered (post-1.0.0 roadmap)
+
+CPI, PPI, ECI, productivity statistics, and NCS are **not** in the 1.0.0 release. If any of these are load-bearing for your use case, let us know at [hello@thesma.dev](mailto:hello@thesma.dev) — it informs prioritisation.

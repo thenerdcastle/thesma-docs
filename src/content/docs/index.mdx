@@ -1,0 +1,89 @@
+---
+title: Thesma docs
+description: Developer documentation for the Thesma API — SEC EDGAR, US Census, US BLS, US SBA.
+template: splash
+hero:
+  tagline: US financial, demographic, labor, and lending data through one API. Zero to first call in under five minutes.
+  actions:
+    - text: Quickstart
+      link: /getting-started/quickstart
+      icon: right-arrow
+      variant: primary
+    - text: API Reference
+      link: /api-reference
+      icon: external
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Start here
+
+<CardGrid>
+  <LinkCard
+    title="Quickstart"
+    description="Sign up, get a key, make your first call against SEC EDGAR. Under five minutes."
+    href="/getting-started/quickstart"
+  />
+  <LinkCard
+    title="Authentication"
+    description="Both header formats (X-API-Key and Authorization: Bearer). Key format. Error shapes."
+    href="/getting-started/authentication"
+  />
+  <LinkCard
+    title="Rate limits"
+    description="Tier table, 429 shape, Retry-After. All datasets included on every tier."
+    href="/getting-started/rate-limits"
+  />
+  <LinkCard
+    title="API Reference"
+    description="Full endpoint reference, live-fetched from api.thesma.dev. Try it in the browser."
+    href="/api-reference"
+  />
+</CardGrid>
+
+## Datasets
+
+Four US data verticals, exposed as standalone endpoints and enriched on SEC filings:
+
+<CardGrid>
+  <LinkCard
+    title="SEC EDGAR"
+    description="10-K / 10-Q financials, Form 4 insider trades, 8-K events, 13F holdings, DEF 14A compensation. Every US public company on NYSE and NASDAQ."
+    href="/datasets/sec-edgar"
+  />
+  <LinkCard
+    title="US Census"
+    description="26 demographic and economic metrics across 6 geographic levels (nation, state, county, place, census tract, metro area)."
+    href="/datasets/us-census"
+  />
+  <LinkCard
+    title="US BLS"
+    description="Industry employment, county wages, occupation wages, labor turnover, state unemployment. CES, QCEW, OEWS, JOLTS, LAUS."
+    href="/datasets/us-bls"
+  />
+  <LinkCard
+    title="US SBA"
+    description="903,000+ 7(a) small-business loans by lender, county, state, and NAICS industry."
+    href="/datasets/us-sba"
+  />
+</CardGrid>
+
+## Recipes
+
+Worked examples with curl and the Python SDK:
+
+<CardGrid>
+  <LinkCard
+    title="Enrich SEC filings with labor context"
+    description="The flagship cross-dataset recipe. ?include=labor_context adds BLS employment and wage data to any SEC financials response."
+    href="/recipes/cross-dataset-labor-context"
+  />
+</CardGrid>
+
+## Clients
+
+<CardGrid>
+  <LinkCard title="Python SDK" description="pip install thesma. Sync and async clients, pagination helpers, typed Pydantic models." href="/clients/python-sdk" />
+  <LinkCard title="CLI" description="Ships with the Python SDK. Resource-scoped commands. Env-var auth." href="/clients/cli" />
+  <LinkCard title="MCP server" description="Hosted MCP at mcp.thesma.dev — connect from Claude Desktop, Cursor, or ChatGPT. 40+ tools." href="/clients/mcp-server" />
+</CardGrid>

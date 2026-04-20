@@ -1,0 +1,20 @@
+---
+title: US SBA
+description: Small Business Administration 7(a) lending — 903k+ loans by lender, county, state, and NAICS industry.
+---
+
+:::note[Coming soon]
+The full US SBA dataset guide — endpoint table, cross-dataset enrichment (`?include=lending_context` on SEC filings), screener filters, and known limitations — is in progress for a post-launch update.
+
+For now, see the **Small Business Administration** section in the [API Reference](/api-reference) for the full endpoint list.
+:::
+
+### Covered
+
+- 903,000+ 7(a) small-business loans
+- Aggregates by lender, county, state, and NAICS industry
+- Charge-off and default outcomes
+
+### Known limitation — Connecticut FIPS schema change
+
+A 2022 FIPS schema change for Connecticut counties left approximately **6,408 loans** unresolved at the county level in the current ingest. These loans are visible at the state level but do not roll up into county-level aggregates. Fix targeted for the next data refresh.

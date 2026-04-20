@@ -1,0 +1,57 @@
+---
+// Wraps Scalar's API-reference web component, live-fetching the OpenAPI spec
+// from api.thesma.dev at browser runtime. No build-time caching — the docs
+// reference stays in lockstep with whatever the API is currently emitting.
+//
+// If jsdelivr (the CDN for Scalar's JS bundle) is unreachable, the fallback
+// message inside #app stays visible with a link to the bare Scalar reference
+// at api.thesma.dev/docs as a degraded-state escape hatch.
+---
+
+<div id="app" class="scalar-mount">
+  <div class="scalar-fallback">
+    <p>The API reference is loading&hellip;</p>
+    <p>
+      If it doesn't appear within a few seconds, the Scalar CDN
+      (<code>cdn.jsdelivr.net</code>) may be unreachable. Try refreshing, or
+      visit <a href="https://api.thesma.dev/docs" target="_blank" rel="noopener noreferrer">api.thesma.dev/docs</a>
+      directly for the bare OpenAPI reference.
+    </p>
+  </div>
+</div>
+
+<script is:inline src="https://cdn.jsdelivr.net/npm/@scalar/api-reference" type="module"></script>
+<script is:inline type="module">
+  Scalar.createApiReference('#app', {
+    url: 'https://api.thesma.dev/openapi.json',
+    darkMode: true,
+  });
+</script>
+
+<style>
+  .scalar-mount {
+    min-height: 80vh;
+  }
+  .scalar-fallback {
+    max-width: 42rem;
+    margin: 4rem auto;
+    padding: 2rem;
+    color: var(--sl-color-gray-3);
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  .scalar-fallback p {
+    margin-bottom: 1rem;
+  }
+  .scalar-fallback code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 0.1em 0.3em;
+    background-color: var(--sl-color-bg-inline-code);
+    border-radius: 0.25rem;
+  }
+  .scalar-fallback a {
+    color: var(--sl-color-accent);
+  }
+</style>

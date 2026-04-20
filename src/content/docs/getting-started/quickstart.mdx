@@ -1,0 +1,82 @@
+---
+title: Quickstart
+description: Zero to first API call in under five minutes. Sign up, get a key, fetch Apple's 10-K financials.
+---
+
+From no account to a live response in five steps.
+
+## 1. Sign up
+
+Create a free account at [portal.thesma.dev/signup](https://portal.thesma.dev/signup). No credit card, no dataset selection — every tier includes all four data verticals (SEC EDGAR, US Census, US BLS, US SBA).
+
+## 2. Generate an API key
+
+On first login the portal auto-generates a key. You can also create additional keys at [portal.thesma.dev/dashboard](https://portal.thesma.dev/dashboard) → **API keys**.
+
+Keys look like:
+
+```
+gd_live_a1b2c3d4e5f6...
+```
+
+The plaintext key is shown **once** at creation. Save it somewhere safe — the server only stores a SHA-256 hash, so there is no way to recover a lost key. Revoke and reissue if you lose one.
+
+## 3. Make your first call — curl
+
+Fetch the most recent annual financials for Apple (`AAPL`):
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=1"
+```
+
+You should see a JSON response with a `data` array of financial statements and a `pagination` envelope:
+
+```json
+{
+  "data": [
+    {
+      "ticker": "AAPL",
+      "fiscal_year": 2024,
+      "period_type": "annual",
+      "revenue": 391035000000,
+      "net_income": 93736000000,
+      "filed_at": "2024-11-01"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 1,
+    "total": 1,
+    "total_pages": 1
+  }
+}
+```
+
+Exact field values change as new filings land; the **shape** is stable.
+
+## 4. Same call with the Python SDK
+
+```bash
+pip install thesma
+```
+
+```python
+import os
+from thesma import ThesmaClient
+
+client = ThesmaClient(api_key=os.environ["THESMA_API_KEY"])
+
+financials = client.sec.companies("AAPL").financials(period="annual", limit=1)
+print(financials.data[0].revenue)
+```
+
+The SDK reads `THESMA_API_KEY` automatically if you omit the `api_key=` argument.
+
+## 5. What's next
+
+- **[Authentication](/getting-started/authentication)** — both header formats, key-format details, real 401/403 shapes.
+- **[Rate limits](/getting-started/rate-limits)** — what you get on each tier, the 429 shape, and `Retry-After` semantics.
+- **[Datasets](/datasets/sec-edgar)** — coverage, known limitations, endpoint tables for each data vertical.
+- **[Recipes](/recipes/cross-dataset-labor-context)** — worked examples, starting with the flagship cross-dataset labor-context enrichment.
+- **[API Reference](/api-reference)** — full endpoint list, try any request in the browser.

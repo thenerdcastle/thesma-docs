@@ -1,0 +1,97 @@
+---
+title: Enrich SEC filings with labor context
+description: Add BLS industry employment and wage data to any SEC financials response with ?include=labor_context.
+---
+
+The flagship cross-dataset recipe. Add `?include=labor_context` to any SEC financials endpoint and the response adds a `labor_context` object with BLS employment and wage data for the company's NAICS industry — no second API call, no join on your side.
+
+## Problem
+
+You're looking at a company's financials and want to know whether their headcount or wage changes track their industry's macro labor conditions. Traditionally that's two API calls (SEC + BLS), a NAICS lookup, and an aggregation. With `?include=labor_context`, it's one call.
+
+## curl
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=1&include=labor_context"
+```
+
+## Python SDK
+
+```python
+from thesma import ThesmaClient
+
+client = ThesmaClient()
+
+financials = client.sec.companies("AAPL").financials(
+    period="annual",
+    limit=1,
+    include=["labor_context"],
+)
+
+row = financials.data[0]
+print("Apple revenue:", row.revenue)
+print("Industry (NAICS", row.labor_context.naics, ") employment:",
+      row.labor_context.industry_employment)
+print("Industry avg hourly wage:", row.labor_context.industry_avg_wage)
+```
+
+## Expected response shape
+
+The `labor_context` field is a sibling of the standard financial fields on each row in `data`. Field names match what you'd get from the standalone `/v1/us/bls/ces/industries/{naics}/employment` and related endpoints — same types, same units.
+
+```json
+{
+  "data": [
+    {
+      "ticker": "AAPL",
+      "fiscal_year": 2024,
+      "period_type": "annual",
+      "revenue": 391035000000,
+      "net_income": 93736000000,
+      "labor_context": {
+        "naics": "334220",
+        "naics_title": "Radio and Television Broadcasting and Wireless Communications Equipment Manufacturing",
+        "industry_employment": 105300,
+        "industry_employment_yoy_change": -0.021,
+        "industry_avg_hourly_wage": 44.12,
+        "industry_avg_wage_yoy_change": 0.043,
+        "data_period": "2024-12",
+        "source": "BLS CES"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 1,
+    "total": 1,
+    "total_pages": 1
+  }
+}
+```
+
+Exact values drift as new data lands; the shape and field names are stable.
+
+## Available enrichments
+
+`include` accepts a comma-separated list. The two supported values as of launch:
+
+- `labor_context` — BLS industry employment and wages (as above)
+- `lending_context` — US SBA 7(a) small-business lending activity in the company's headquarters county
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?include=labor_context,lending_context"
+```
+
+Each enrichment adds one object to the response row; they can be requested independently or together.
+
+## Why this matters
+
+Per-filing enrichment is the thing the Thesma platform is built around. Without it, every multi-dataset analysis is a three-step join. With it, one endpoint call. The positioning story for the company rides on this recipe.
+
+## See also
+
+- [SEC EDGAR dataset](/datasets/sec-edgar) — coverage, endpoint table, screener filters
+- [US BLS dataset](/datasets/us-bls) — standalone labor endpoints if you want the BLS data without the SEC join
+- [US SBA dataset](/datasets/us-sba) — the lending-context source

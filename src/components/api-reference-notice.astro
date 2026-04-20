@@ -1,0 +1,26 @@
+---
+// Banner above the Scalar reference, warning that "Try it" stores the API key
+// in browser memory for the session. Standard practice for Stripe/Resend/etc.
+---
+
+<aside class="try-it-notice" role="note">
+  <strong>Heads up:</strong> Pasting an API key into the &ldquo;Try it&rdquo; console
+  stores it in your browser&rsquo;s memory for this session. Use a development
+  key for browser-based experimentation rather than a production key.
+</aside>
+
+<style>
+  .try-it-notice {
+    margin: 0 0 1.5rem 0;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid #f59e0b;
+    background-color: rgba(245, 158, 11, 0.08);
+    color: var(--sl-color-gray-2);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    border-radius: 0.25rem;
+  }
+  .try-it-notice strong {
+    color: #fbbf24;
+  }
+</style>

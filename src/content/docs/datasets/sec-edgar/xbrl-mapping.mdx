@@ -1,0 +1,16 @@
+---
+title: XBRL mapping
+description: How SEC XBRL filings are normalised to canonical fields on Thesma financials responses.
+---
+
+:::note[Coming soon]
+The full XBRL mapping guide — how SEC XBRL filings are normalised to canonical fields, what the `metadata.source_tags` field means on a financials response, and known limitations of the mapping — is in progress for a post-launch update.
+
+For now, see the **SEC EDGAR → Financials** section in the [API Reference](/api-reference) for the full response schema.
+:::
+
+### Known limitation — IFRS 20-F coverage
+
+IFRS 20-F filers (Spotify, Nu Holdings, GlobalFoundries, and other foreign private issuers) currently have **limited historical coverage** in the canonical financials mapping. Native-currency IFRS support is targeted for **Q2 2026**.
+
+If you need IFRS 20-F coverage today, the raw filings are reachable via the `/v1/us/sec/filings` endpoint — you'd need to parse them yourself until the canonical mapping catches up.

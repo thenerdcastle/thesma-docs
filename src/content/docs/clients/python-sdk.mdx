@@ -1,0 +1,49 @@
+---
+title: Python SDK
+description: Official Python SDK for the Thesma API. pip install thesma.
+---
+
+:::note[Coming soon]
+The full Python SDK guide — sync (`ThesmaClient`) and async (`AsyncThesmaClient`) clients, pagination helpers, automatic retry, bulk export streaming (`ExportStream`), typed Pydantic response models, and typed error classes — is in progress for a post-launch update.
+:::
+
+## Install
+
+```bash
+pip install thesma
+```
+
+## Quickstart
+
+```python
+import os
+from thesma import ThesmaClient
+
+client = ThesmaClient()  # reads THESMA_API_KEY from the environment
+
+# List public companies
+companies = client.sec.companies.paginate(per_page=100)
+for c in companies:
+    print(c.ticker, c.name)
+
+# Get financials for AAPL
+financials = client.sec.companies("AAPL").financials(period="annual", limit=5)
+for row in financials.data:
+    print(row.fiscal_year, row.revenue, row.net_income)
+```
+
+For the async client:
+
+```python
+from thesma import AsyncThesmaClient
+
+async def main():
+    async with AsyncThesmaClient() as client:
+        financials = await client.sec.companies("AAPL").financials(period="annual", limit=5)
+        print(financials.data[0].revenue)
+```
+
+## Links
+
+- **PyPI:** [pypi.org/project/thesma](https://pypi.org/project/thesma/)
+- **Source:** [github.com/thenerdcastle/thesma-python](https://github.com/thenerdcastle/thesma-python)

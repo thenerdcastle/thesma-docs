@@ -1,0 +1,28 @@
+---
+title: CLI
+description: The thesma CLI ships with the Python SDK. Resource-scoped commands, env-var auth.
+---
+
+:::note[Coming soon]
+The full CLI reference — resource-scoped commands (`thesma companies list`, `thesma financials get AAPL`, `thesma export financials --since 2024-01-01 --format csv`, etc.) and the full command surface across companies, filings, financials, ratios, events, holdings, insider trades, BLS, Census, SBA, screener, and export — is in progress for a post-launch update.
+:::
+
+## Install
+
+The CLI ships with the Python SDK — no separate install.
+
+```bash
+pip install thesma
+thesma --help
+```
+
+## Auth
+
+The CLI reads `THESMA_API_KEY` from the environment:
+
+```bash
+export THESMA_API_KEY="gd_live_..."
+thesma companies list --ticker AAPL
+```
+
+No `--key` flag — use the env var.
