@@ -1,0 +1,144 @@
+---
+title: Fetch 5 years of annual financials for an IFRS filer
+description: Pull Spotify's 5-year annual income-statement history in native EUR. Demonstrates IFRS-Full taxonomy, native-currency reporting, and the _reporting_notes metadata.
+---
+
+Get a 5-year annual income-statement history for an IFRS filer. Spotify (`SPOT`, CIK `1639920`) as the worked example — one of the most-searched IFRS tickers on Thesma, Thesma-verified IFRS coverage, and 8 years of clean annual history in EUR (back to the 2018 NYSE listing).
+
+## Problem
+
+You want a 5-year revenue and net-income trend for a foreign private issuer that files 20-F under IFRS. The `/financials` endpoint is the same shape as for US-GAAP filers, with `taxonomy='ifrs-full'` and `currency='EUR'` per row. Passing `?per_page=N` flips the response shape to a paginated array so you can pull multiple years in one call.
+
+## curl — annual history
+
+**Use the numeric CIK.** Spotify's ticker `SPOT` returns 404 on `/v1/us/sec/companies/{cik}/financials` — ticker-to-CIK resolution is absent on this endpoint for **all filers** (not IFRS-specific), so `AAPL/financials` would also return 404 if tried. Use `1639920` (or the zero-padded `0001639920`) for Spotify. For other tickers, resolve the CIK first via `/v1/us/sec/companies?search=<name>`.
+
+`statement=income` selects the income statement (alternatives: `balance-sheet`, `cash-flow`). `period=annual` filters to 20-F rows (quarterly is not applicable to most IFRS filers; they don't file 10-Qs).
+
+`per_page=5` asks for the 5 most recent annual statements as a paginated list. Without `per_page`, the response collapses to a single most-recent statement — `per_page`'s presence is what flips the shape to an array.
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/1639920/financials?statement=income&period=annual&per_page=5" \
+  | jq '.data[] | {fiscal_year, revenue: .line_items.revenue, net_income: .line_items.net_income, currency}'
+```
+
+Note the jq path `.line_items.revenue` — revenue and net_income live under `line_items`, not at the top level of the row.
+
+## Expected response shape
+
+Structurally exact at publication. Value-level numbers illustrative — exact figures drift as new filings land; field names, types, and the `taxonomy`/`currency`/`_reporting_notes` metadata shape are stable.
+
+```json
+{
+  "data": [
+    {
+      "company": {
+        "cik": "0001639920",
+        "ticker": "SPOT",
+        "name": "Spotify Technology S.A."
+      },
+      "statement": "income",
+      "period": "annual",
+      "fiscal_year": 2025,
+      "fiscal_year_end": "2025-12-31",
+      "filing_accession": "0001628280-26-006874",
+      "taxonomy": "ifrs-full",
+      "currency": "EUR",
+      "line_items": {
+        "revenue": 17186000000,
+        "cost_of_revenue": 11690000000,
+        "gross_profit": 5496000000,
+        "operating_income": 2198000000,
+        "net_income": 2212000000,
+        "eps_basic": 10.77,
+        "eps_diluted": 10.51
+      },
+      "field_confidence": {
+        "selling_general_admin": "medium"
+      },
+      "_reporting_notes": {
+        "presentation_format": "by_function",
+        "ifrs_18_applied": false
+      }
+    },
+    {
+      "company": { "cik": "0001639920", "ticker": "SPOT", "name": "Spotify Technology S.A." },
+      "statement": "income",
+      "period": "annual",
+      "fiscal_year": 2024,
+      "taxonomy": "ifrs-full",
+      "currency": "EUR",
+      "line_items": { "revenue": 15673000000, "net_income": 1138000000 },
+      "_reporting_notes": { "presentation_format": "by_function", "ifrs_18_applied": false }
+    },
+    {
+      "company": { "cik": "0001639920", "ticker": "SPOT", "name": "Spotify Technology S.A." },
+      "statement": "income",
+      "period": "annual",
+      "fiscal_year": 2023,
+      "taxonomy": "ifrs-full",
+      "currency": "EUR",
+      "line_items": { "revenue": 13247000000, "net_income": -532000000 },
+      "_reporting_notes": { "presentation_format": "by_function", "ifrs_18_applied": false }
+    }
+  ],
+  "pagination": { "page": 1, "per_page": 5, "total": 8, "total_pages": 2 }
+}
+```
+
+FY2022 and FY2021 are truncated above for brevity; the complete 5-row response continues the same shape (revenue €11,727M in 2022, €9,668M in 2021). `pagination.total: 8` indicates Spotify has 8 annual statements available back to the 2018 NYSE listing — call `?page=2` to get older rows.
+
+:::note
+`field_confidence` values are per-field confidence signals for canonical fields; a field is listed only when its confidence is non-default. `"medium"` on `selling_general_admin` for FY2025 means the mapping was computed with a secondary heuristic. Absent fields (most of them) have default/high confidence.
+:::
+
+Two things to note:
+
+- **`currency: "EUR"`.** Spotify's `revenue: 17186000000` is €17.186B, not USD. No FX conversion in v1 — see [XBRL mapping — Native-currency reporting](/datasets/sec-edgar/xbrl-mapping#native-currency-reporting).
+- **`_reporting_notes`.** `presentation_format='by_function'` tells you Spotify reports the income statement grouped by function (COGS, SG&A) rather than by nature (materials, personnel). `ifrs_18_applied=false` indicates the filing pre-dates IFRS 18 adoption (IFRS 18 is effective for periods beginning 2027-01-01). Both fields help cross-filer comparability — see the [six comparability caveats](/datasets/sec-edgar/xbrl-mapping#reporting-basis-and-comparability) before comparing IFRS line items to US-GAAP line items.
+
+## Alternative — single-metric time series
+
+For one metric across all available years, use the `/financials/{metric}` endpoint. The shape differs from `/financials` — `data` is a single object containing a `series` list:
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/1639920/financials/revenue?period=annual" \
+  | jq '.data | {metric, currency, series: [.series[] | {fiscal_year, value}]}'
+```
+
+Response shape (abbreviated):
+
+```json
+{
+  "data": {
+    "company": { "cik": "0001639920", "ticker": "SPOT", "name": "Spotify Technology S.A." },
+    "metric": "revenue",
+    "period": "annual",
+    "currency": "EUR",
+    "series": [
+      { "fiscal_year": 2018, "value": 5259000000, "taxonomy": "ifrs-full", "currency": "EUR" },
+      { "fiscal_year": 2019, "value": 6764000000, "taxonomy": "ifrs-full", "currency": "EUR" }
+    ]
+  }
+}
+```
+
+Returns every annual revenue value Thesma has for Spotify — 8 rows back to the 2018 NYSE listing. `currency` remains `EUR` across the series.
+
+## Gotchas
+
+- **Same endpoint, different metadata.** IFRS filers use the same `/v1/us/sec/companies/{cik}/financials` path as US-GAAP filers. The `taxonomy` and `currency` fields on each row tell you which reporting framework you're getting. No conditional path routing on the client side.
+- **`per_page` flips the shape.** Without `per_page`, `data` is a single statement object. With `per_page`, `data` is a list of statements and `pagination` appears alongside. The two shapes are distinct and your client code has to handle whichever you request.
+- **No `income_statement` statement value.** The accepted values are `income`, `balance-sheet`, `cash-flow` (note the hyphens, not underscores). `statement=income_statement` returns a 400 validation error.
+- **Filter IFRS-only companies with `?taxonomy=ifrs-full`.** The `/v1/us/sec/companies` list endpoint accepts `taxonomy` and `currency` query parameters. `?taxonomy=ifrs-full&currency=EUR` returns IFRS filers that report in EUR (roughly 50+ today).
+- **Six comparability caveats.** IFRS and US-GAAP differ on R&D capitalisation, LIFO inventory, operating-subtotal optionality, finance-costs scope, dividends classification, and bank-extension line items. Read [Reporting basis and comparability](/datasets/sec-edgar/xbrl-mapping#reporting-basis-and-comparability) before making cross-framework comparisons.
+- **Coverage depth varies.** Most Thesma-verified IFRS anchors (Spotify, Nu Holdings, GlobalFoundries, Globant, On Holding, Birkenstock, Amer Sports) have 3+ years of annual history. Two — AngloGold Ashanti and Millicom — currently show single-row coverage; retro-discovery follow-up is tracked separately. Use Spotify (or any of the deep-history anchors above) for multi-year demos.
+
+## See also
+
+- [SEC EDGAR dataset](/datasets/sec-edgar) — full endpoint list and coverage
+- [XBRL mapping — IFRS 20-F](/datasets/sec-edgar/xbrl-mapping#ifrs-20-f--live) — the six comparability caveats and native-currency reporting
+- [Fetch 5 years of annual financials](/recipes/sec-financials) — the US-GAAP sibling recipe
+- [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — `?include=labor_context` works identically for IFRS filers

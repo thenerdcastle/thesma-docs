@@ -93,15 +93,16 @@ Returns every annual revenue value on record — typically 10+ years for mature 
 ## Gotchas
 
 - **`fiscal_year` is the year the period ends, not the filing calendar year.** Apple's FY2024 ended September 2024 and was filed November 2024. See [XBRL mapping → Period-end date alignment](/datasets/sec-edgar/xbrl-mapping) if this bites.
-- **Values are always reported in reporting currency.** US issuers report in USD. IFRS 20-F foreign filers may report in native currency; Thesma's canonical fields for those filers are partial until the Q2 2026 IFRS expansion — see [XBRL mapping → IFRS 20-F](/datasets/sec-edgar/xbrl-mapping).
+- **Values are always reported in the filer's presentation currency.** US issuers report in USD. IFRS 20-F filers report in their native currency (Spotify in EUR, Nu Holdings in USD, Birkenstock in EUR, and others) with no USD conversion in v1. See the [IFRS filer recipe](/recipes/ifrs-filer-history) for a worked example and [XBRL mapping → IFRS 20-F](/datasets/sec-edgar/xbrl-mapping#ifrs-20-f--live) for the six comparability caveats.
 - **Quarterly has a different shape.** Swap `period=annual` for `period=quarterly` for 10-Q data. Quarterly fiscal quarters are labeled by fiscal year + quarter (`2024-Q4`, `2025-Q1`), not calendar quarter.
 
 ## Stable example targets
 
-Apple (AAPL) and Microsoft (MSFT) are recommended when you need an example in a blog post or dashboard — universally recognised, dense coverage, no IFRS edge cases. Avoid foreign private issuers (Spotify, Nu Holdings, GlobalFoundries) for canonical-field examples until the Q2 2026 IFRS work lands.
+Apple (AAPL) and Microsoft (MSFT) are recommended for US-GAAP examples — universally recognised and dense coverage. For IFRS examples, use Spotify (CIK 1639920), Nu Holdings (CIK 1691493), or any of the other Thesma-verified IFRS anchors listed on [XBRL mapping — IFRS 20-F](/datasets/sec-edgar/xbrl-mapping#ifrs-20-f--live). The [IFRS filer recipe](/recipes/ifrs-filer-history) is the sibling of this recipe using Spotify.
 
 ## See also
 
 - [SEC EDGAR dataset](/datasets/sec-edgar) — full endpoint list
 - [XBRL mapping](/datasets/sec-edgar/xbrl-mapping) — how values are normalised across filers
+- [IFRS filer recipe](/recipes/ifrs-filer-history) — 5-year history for a 20-F filer (Spotify, EUR)
 - [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — add BLS industry context to any financials response

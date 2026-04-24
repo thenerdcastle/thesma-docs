@@ -55,6 +55,8 @@ You should see a JSON response with a `data` array of financial statements and a
 
 Exact field values change as new filings land; the **shape** is stable.
 
+This endpoint works the same way for US-GAAP and IFRS filers — the response shape is identical, with `taxonomy` and `currency` metadata telling you which reporting framework you're getting. See the [IFRS filer recipe](/recipes/ifrs-filer-history) for a worked IFRS example.
+
 ## 4. Same call with the Python SDK
 
 ```bash

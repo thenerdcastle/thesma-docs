@@ -86,6 +86,17 @@ curl -H "X-API-Key: $THESMA_API_KEY" \
 
 Each enrichment adds one object to the response row; they can be requested independently or together.
 
+## Works for IFRS filers too
+
+`?include=labor_context` is taxonomy-agnostic. BLS industry enrichment keys off the filer's SIC/NAICS code, not the reporting framework, so the same parameter works identically for IFRS 20-F filers (Spotify, Nu Holdings, and others):
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/companies/1639920/financials?statement=income&period=annual&per_page=1&include=labor_context"
+```
+
+Spotify's NAICS industry resolves to the same BLS CES context you'd get for a US-GAAP peer. The financial values are still in native currency (EUR for Spotify) — `labor_context` is USD-denominated independently. See the [IFRS filer recipe](/recipes/ifrs-filer-history) for the non-enriched Spotify case.
+
 ## Why this matters
 
 Per-filing enrichment is the thing the Thesma platform is built around. Without it, every multi-dataset analysis is a three-step join. With it, one endpoint call. The positioning story for the company rides on this recipe.

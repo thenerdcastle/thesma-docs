@@ -1,6 +1,6 @@
 ---
 title: XBRL mapping
-description: How SEC XBRL filings are normalised to canonical fields on Thesma financials responses. Source tags, versioning, and known gaps including the IFRS 20-F limitation (Q2 2026).
+description: How SEC XBRL filings are normalised to canonical fields on Thesma financials responses. Source tags, versioning, and the IFRS 20-F reporting basis — native currency, six comparability caveats, and bank-extension limitations.
 ---
 
 SEC filers tag their financial statements using **XBRL** (eXtensible Business Reporting Language) — a taxonomy of thousands of concepts like `us-gaap:Revenues`, `us-gaap:NetIncomeLoss`, `us-gaap:Assets`. The problem is taxonomy drift: different filers use different concepts for the same economic fact, the same filer uses different concepts across years, and extension taxonomies proliferate. Raw XBRL is not cross-comparable out of the box.
@@ -89,15 +89,32 @@ Most large-cap filers are `exact` across the board. Smaller filers and IFRS 20-F
 
 ## Known limitations
 
-### IFRS 20-F filers — limited coverage, Q2 2026 target
+### IFRS 20-F — live
 
-The canonical schema is designed around US-GAAP concepts. Foreign private issuers that file **20-F** with IFRS statements — Spotify, Nu Holdings, GlobalFoundries, and others — are partially normalised:
+Foreign private issuers file **20-F** annual reports under the IFRS-Full taxonomy instead of US-GAAP. Roughly ~400+ companies on NYSE and NASDAQ file under IFRS today (Spotify, Nu Holdings, GlobalFoundries, Birkenstock, AngloGold Ashanti, Amer Sports, On Holding, Globant, XP Inc, Millicom, and others). They share the same `/v1/us/sec/companies/{cik}/financials` endpoint and the same canonical field names as US-GAAP filers, with two pieces of extra metadata on every response:
 
-- Company records exist in `/v1/us/sec/companies`.
-- Raw 20-F filings are indexed in `/v1/us/sec/filings`.
-- Canonical `/v1/us/sec/companies/{cik}/financials` responses have **limited historical coverage** — expect sparse coverage pre-2023 and occasional gaps post-2023.
+- `taxonomy: 'ifrs-full'` (vs `'us-gaap'`)
+- `currency: <ISO-4217>` — e.g., `'EUR'` for Spotify, `'USD'` for Nu Holdings, `'BRL'` for Brazilian IFRS filers
+- `_reporting_notes` — an object with two always-present keys: `presentation_format` (`by_function` | `by_nature` | `unknown`) and `ifrs_18_applied` (boolean). Five conditional keys may appear when the corresponding edge case fires: `TAXONOMY_CHANGED_IN_AMENDMENT`, `CURRENCY_CHANGED_IN_AMENDMENT`, `TAXONOMY_DETECTION_AMBIGUOUS`, `CURRENCY_DETECTION_AMBIGUOUS`, `presentation_format_detection_note`. Absent keys are dropped from wire output. For per-field confidence signals on derived values, see `field_confidence` (a separate sibling of `line_items`).
 
-Native-currency IFRS support (EUR, BRL, etc. reporting without lossy conversion) and full IFRS-concept mapping are targeted for **Q2 2026**. Until then, 20-F users should fetch raw filings and parse XBRL directly for fields we haven't fully mapped.
+#### Reporting basis and comparability
+
+IFRS and US-GAAP differ in ways that matter for cross-filer comparison. Thesma surfaces the divergences honestly rather than silently smoothing them. The six comparability caveats below apply at the line-item level — read them before comparing an IFRS filer's canonical field to a US-GAAP filer's canonical field.
+
+1. **R&D capitalisation.** IFRS allows capitalisation of development costs that meet the IAS 38 criteria; US-GAAP expenses most R&D. Compare `research_and_development` with care for companies that capitalise.
+2. **LIFO inventory.** US-GAAP permits LIFO; IFRS prohibits it. Inventory costs and gross margins are not directly comparable between a LIFO US filer and an IFRS filer.
+3. **Operating subtotal optionality.** Before IAS 1 revisions took effect, IFRS didn't require a disclosed operating-income line. Where the filer didn't report one, Thesma derives `operating_income` from available subtotals. Check the row's `field_confidence` dict for a per-field confidence signal on `operating_income` when the derivation path is used — `field_confidence` is a sibling of `line_items` in the response and reports string confidence labels (e.g., `"medium"`) for fields with non-default confidence.
+4. **Finance costs scope.** IFRS's "finance costs" category may bundle items that US-GAAP reports separately (interest expense, FX losses, hedge ineffectiveness). Thesma maps to canonical `interest_expense` using the filer's disclosed breakdown; where only a combined total exists, the value is flagged via `source_tags`.
+5. **Dividends classification.** IFRS permits dividends paid to be classified under operating or financing in the cash flow statement. Thesma preserves the filer's chosen classification rather than forcing one location — inspect `financing_cash_flow` and `operating_cash_flow` together for IFRS filers.
+6. **Bank extensions.** IFRS banks (Nu Holdings today; other foreign IFRS banks are in progress) report many line items through bank-specific XBRL extension taxonomies. Thesma canonicalises the top-level totals — revenue, net income, total assets, equity, operating/investing/financing cash flows — but sub-line-item detail lives in company-specific extensions and is not normalised across banks in v1.
+
+#### Native-currency reporting
+
+Values are reported in the filer's presentation currency with **no USD conversion in v1**. A Spotify row's `revenue: 17186000000` is €17.186B, not USD. The `currency` field on every response tells you the unit. Applications that need a unified USD view apply client-side FX conversion at a reference rate of their choosing.
+
+USD-normalised IFRS values are on the roadmap for a future release; until then, the design choice is "honest native currency" over "lossy pre-conversion."
+
+See the [IFRS filer recipe](/recipes/ifrs-filer-history) for an end-to-end worked example using Spotify.
 
 ### Extension taxonomies
 
