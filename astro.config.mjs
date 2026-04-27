@@ -25,7 +25,8 @@ export default defineConfig({
       ],
       customCss: ['./src/styles/theme.css'],
       components: {
-        SocialIcons: './src/components/get-api-key-button.astro',
+        SocialIcons: './src/components/auth-nav-cluster.astro',
+        SiteTitle: './src/components/site-title.astro',
       },
       sidebar: [
         {

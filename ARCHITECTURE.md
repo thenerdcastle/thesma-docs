@@ -24,7 +24,8 @@ src/content/docs/            # Starlight content collection — file-based routi
 src/components/              # Custom Starlight overrides
   ├── scalar-reference.astro        # Scalar web component wrapper
   ├── api-reference-notice.astro    # "Try it" key-in-browser warning banner
-  └── get-api-key-button.astro      # "Get API Key" CTA in masthead
+  ├── auth-nav-cluster.astro        # Sign in link + Get API Key CTA in masthead (SocialIcons slot)
+  └── site-title.astro              # Wordmark override → links to thesma.dev marketing
 
 src/styles/theme.css         # Tailwind v4 @theme tokens + Starlight CSS-var overrides
 ```
@@ -37,7 +38,7 @@ Content lives under `src/content/docs/` using Starlight's `docsLoader()` and `do
 
 Declared in `astro.config.mjs` under the Starlight integration's `sidebar` config. Top-level groups use `autogenerate: { directory: '<slug>' }` so new MDX files appear automatically — no per-page sidebar edits.
 
-Sidebar order matches the IA spec: Getting Started → Datasets → Recipes → Clients → API Reference. Home is reached via the masthead wordmark.
+Sidebar order matches the IA spec: Getting Started → Datasets → Recipes → Clients → API Reference. The masthead wordmark links to the thesma.dev marketing site (per D-03); the docs home (`/`) is reached via the Getting Started sidebar group's first entry.
 
 ## Styling
 

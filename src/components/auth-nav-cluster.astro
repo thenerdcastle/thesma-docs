@@ -1,0 +1,74 @@
+---
+// Rendered in Starlight's `components.SocialIcons` slot. Starlight injects
+// SocialIcons into both the desktop masthead (Header.astro right-group) and
+// the mobile menu footer (MobileMenuFooter.astro), so this single override
+// reaches both surfaces. Renders the auth pair: a "Sign in" text link to the
+// portal /login page + a "Get API Key" CTA button to the portal /signup.
+---
+
+<div class="auth-nav-cluster">
+  <a
+    href="https://portal.thesma.dev/login"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="sign-in-link"
+  >
+    Sign in
+  </a>
+  <a
+    href="https://portal.thesma.dev/signup"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="get-api-key-cta"
+  >
+    Get API Key
+  </a>
+</div>
+
+<style>
+  .auth-nav-cluster {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .sign-in-link {
+    color: var(--sl-color-text);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s;
+  }
+  .sign-in-link:hover,
+  .sign-in-link:focus-visible {
+    color: var(--sl-color-text-accent);
+  }
+  .get-api-key-cta {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.9rem;
+    background-color: var(--sl-color-accent);
+    color: white !important;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    text-decoration: none;
+    transition: background-color 0.15s;
+    white-space: nowrap;
+    min-height: 40px;
+    box-sizing: border-box;
+  }
+  .get-api-key-cta:hover,
+  .get-api-key-cta:focus-visible {
+    background-color: #60a5fa;
+  }
+  @media (max-width: 50rem) {
+    .get-api-key-cta {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8125rem;
+    }
+    .sign-in-link {
+      font-size: 0.8125rem;
+    }
+  }
+</style>
