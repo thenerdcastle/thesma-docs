@@ -1,73 +1,80 @@
 ---
 title: Errors
-description: Canonical error response shape, status codes, error_code values, and common causes and fixes.
+description: Canonical error response shape, status codes, error.code values, and common causes and fixes.
 ---
 
-Every error — from auth failures to validation errors to 429s — follows the same JSON shape. Client code can pattern-match on `error_code` rather than parsing HTTP status alone.
+Every error — from auth failures to validation errors to 429s — follows the same nested JSON shape. Client code can pattern-match on `error.code` rather than parsing HTTP status alone.
 
 ## Canonical shape
 
 ```json
 {
-  "error": "short_error_slug",
-  "error_code": "specific_machine_readable_code",
-  "message": "Human-readable description of what went wrong.",
-  "details": {
-    "field": "optional, present on validation errors"
+  "error": {
+    "code": "specific_machine_readable_code",
+    "message": "Human-readable description of what went wrong.",
+    "status": 400
   }
 }
 ```
 
-- `error` — short category slug (`unauthorized`, `not_found`, `validation_error`, `rate_limit_exceeded`, `server_error`).
-- `error_code` — machine-readable code for programmatic handling. Stable across versions.
-- `message` — human-readable description. Safe to show to developers; not intended for end users.
-- `details` — optional context. Present on validation errors (offending field, received value) and rate-limit errors (limit, reset time).
+- `error` — an object containing the structured error.
+- `error.code` — machine-readable code for programmatic handling. Stable across versions. Pattern-match on this in client code.
+- `error.message` — human-readable description. Safe to show to developers; not for end users.
+- `error.status` — HTTP status as an integer. Mirrors the response status code.
+
+Some endpoints add additional fields under `error` for capability-flavored responses (e.g. tier-gated 402s on screener endpoints carry `current_tier` and `required_tier`). Always read `error.code` first; treat extras as best-effort context.
 
 ## Status codes
 
-| Status | Category | Common causes |
+| Status | `error.code` | Source | Common causes |
+|---|---|---|---|
+| 400 | `validation_error` / `bad_request` | Live-verified | Missing required parameter (e.g. `?statement=` on `/financials`); enum value out of range (e.g. `statement=banana`); malformed query |
+| 401 | `unauthorized` | Live-verified | Missing API key, invalid key, revoked key |
+| 402 | `tier_required` | Spec-inferred — possible, not yet observed | Endpoint requires a higher pricing tier (S17 gate). Response should include `current_tier` and `required_tier`. |
+| 404 | `not_found` | Live-verified | Unknown ticker / CIK / FIPS / industry code; or unknown route |
+| 429 | `rate_limit_exceeded` | Live-verified | Daily or burst cap hit. Response includes `Retry-After` header. |
+| 500 | `internal_error` | Spec-inferred — verify at dev time | Server-side error. Transient — retry with exponential backoff. |
+| 503 | `upstream_unavailable` | Spec-inferred — verify at dev time | Upstream data source (SEC, Census, BLS, SBA) temporarily unreachable. |
+
+## Error code catalogue
+
+### Auth (401)
+
+| `error.code` | Cause | Fix |
 |---|---|---|
-| 400 | Validation error | Invalid query parameter, malformed date, unknown ticker, `per_page` out of range |
-| 401 | Unauthorized | Missing API key, invalid key, revoked key |
-| 403 | Forbidden | Account suspended, key disabled |
-| 404 | Not found | No data for the requested ticker / CBSA / FIPS / industry code |
-| 422 | Unprocessable entity | Semantic validation failure (e.g., date range outside covered period) |
-| 429 | Rate limited | Daily or burst cap exceeded — see [Rate limits](/getting-started/rate-limits) |
-| 500 | Server error | Something broke on our side. Transient — retry with backoff. Report persistent 500s to [support@thesma.dev](mailto:support@thesma.dev) with the response body. |
-| 503 | Service unavailable | Upstream data source (SEC, Census, BLS, SBA) is temporarily unreachable. Transient. |
+| `unauthorized` | Missing API key, or key is invalid / revoked | Generate a new key in the [portal](https://portal.thesma.dev/dashboard). Pass it via `X-API-Key: <key>` or `Authorization: Bearer <key>`. The `error.message` distinguishes "missing" from "invalid". |
 
-## Common `error_code` values
+### Validation (400)
 
-### Auth (401 / 403)
+| `error.code` | Cause | Fix |
+|---|---|---|
+| `validation_error` | Required parameter missing. The `error.message` names the field (e.g. `field 'query -> statement': Field required`). | Read the message — it tells you which field. Common cases: `?statement=` on `/financials`, `?period=` where required. |
+| `bad_request` | Parameter value not in allowed set. The `error.message` lists valid values (e.g. `Invalid statement type 'banana'. Must be one of: income, balance-sheet, cash-flow, all.`). | Use one of the allowed values. |
 
-| `error_code` | Fix |
-|---|---|
-| `missing_api_key` | Pass the key via `X-API-Key` or `Authorization: Bearer` header |
-| `invalid_api_key` | Key does not exist or has been revoked. Generate a new key in the portal. |
-| `account_suspended` | Contact support — account is suspended |
+### Not found (404)
 
-### Validation (400 / 422)
+| `error.code` | Cause | Fix |
+|---|---|---|
+| `not_found` | Unknown company / FIPS / industry — OR unknown route. The `error.message` names the resource if it's a data lookup (e.g. `Company 'ZZZZZZ' not found.`). | For company lookups: confirm the ticker or CIK is in the [SEC EDGAR coverage](/datasets/sec-edgar). For FIPS: see [Census coverage](/datasets/us-census). For routes: check the [API Reference](/api-reference). |
 
-| `error_code` | Fix |
-|---|---|
-| `invalid_parameter` | Check the `details.field` — parameter value is malformed or out of range |
-| `unknown_ticker` | Ticker not in the SEC EDGAR universe. See [SEC EDGAR coverage](/datasets/sec-edgar). |
-| `unknown_cbsa` | CBSA code not recognised. See [US Census coverage](/datasets/us-census). |
-| `date_out_of_range` | Requested date is outside the dataset's covered period |
+### Tier gate (402)
 
-### Rate limits (429)
+| `error.code` | Cause | Fix |
+|---|---|---|
+| `tier_required` | Endpoint requires a higher pricing tier than the API key has. Response carries `current_tier` and `required_tier`. | Upgrade in the [portal](https://portal.thesma.dev/dashboard) or fall back to a free-tier endpoint. See [Pricing](https://thesma.dev/pricing). |
 
-| `error_code` | Fix |
-|---|---|
-| `daily_limit_exceeded` | Wait until midnight UTC or upgrade tier. See [Rate limits](/getting-started/rate-limits). |
-| `burst_limit_exceeded` | Wait 1 second and retry. Usually means you're paginating too fast. |
+### Rate limited (429)
+
+| `error.code` | Cause | Fix |
+|---|---|---|
+| `rate_limit_exceeded` | Daily request cap hit OR per-second burst cap hit. The `error.message` distinguishes the two. Response carries `Retry-After` (seconds). | Daily: wait until midnight UTC, or upgrade tier. Burst: wait the `Retry-After` value (typically 1 sec) and retry. |
 
 ### Server (500 / 503)
 
-| `error_code` | Fix |
-|---|---|
-| `internal_error` | Retry with exponential backoff. Report persistent cases. |
-| `upstream_unavailable` | Upstream data source is down. Retry later. |
+| `error.code` | Cause | Fix |
+|---|---|---|
+| `internal_error` | Server-side error. | Retry with exponential backoff. Report persistent cases to [support@thesma.dev](mailto:support@thesma.dev) with the response body. |
+| `upstream_unavailable` | Upstream data source (SEC, Census, BLS, SBA) is down. | Transient — retry later. |
 
 ## Error envelope, always
 

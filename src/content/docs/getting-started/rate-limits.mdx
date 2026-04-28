@@ -53,12 +53,10 @@ Content-Type: application/json
 
 ```json
 {
-  "error": "rate_limit_exceeded",
-  "error_code": "daily_limit_exceeded",
-  "message": "Daily request limit reached. Resets at midnight UTC.",
-  "details": {
-    "limit": 250,
-    "reset_at": "2026-04-21T00:00:00Z"
+  "error": {
+    "code": "rate_limit_exceeded",
+    "message": "Daily request limit reached. Wait until midnight UTC or upgrade your tier.",
+    "status": 429
   }
 }
 ```
@@ -74,9 +72,11 @@ Retry-After: 1
 
 ```json
 {
-  "error": "rate_limit_exceeded",
-  "error_code": "burst_limit_exceeded",
-  "message": "Per-second burst limit exceeded. Retry after 1 second."
+  "error": {
+    "code": "rate_limit_exceeded",
+    "message": "Burst limit reached. Retry after the `Retry-After` interval.",
+    "status": 429
+  }
 }
 ```
 

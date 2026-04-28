@@ -70,23 +70,35 @@ The `?include=lending_context` parameter on any SEC company or financials endpoi
 ```json
 {
   "lending_context": {
-    "county_fips": "06037",
-    "county_name": "Los Angeles County, CA",
-    "county_loan_count": 3842,
-    "county_total_amount": 2187000000,
-    "county_charge_off_rate": 0.031,
-    "county_jobs_supported": 24180,
-    "naics": "3254",
-    "naics_title": "Pharmaceutical and Medicine Manufacturing",
-    "industry_loan_count": 412,
-    "industry_charge_off_rate": 0.024,
-    "period": "2025-Q4",
-    "source": "SBA 7(a)"
+    "local_market": {
+      "county_fips": "06085",
+      "quarterly_loan_count": 313,
+      "quarterly_total_amount": 142582800,
+      "avg_loan_size": 455536,
+      "quarterly_yoy_change_pct": -17.9,
+      "charge_off_rate_trailing_4q": 3.8,
+      "top_industry_naics": "722511",
+      "top_industry_name": "Full-service restaurants",
+      "data_period": "2025-Q4",
+      "source": "SBA"
+    },
+    "industry_lending": {
+      "naics_code": "334111",
+      "naics_description": "Electronic computer manufacturing",
+      "naics_match_level": "6-digit",
+      "national_quarterly_loan_count": 6,
+      "national_quarterly_total_amount": 2387600,
+      "national_avg_loan_size": 397933,
+      "national_yoy_change_pct": -78.3,
+      "national_charge_off_rate_trailing_4q": 11.8,
+      "data_period": "2025-Q4",
+      "source": "SBA"
+    }
   }
 }
 ```
 
-The enrichment is geographic AND industry — the `county_*` fields describe the company's HQ county; the `industry_*` fields describe the company's NAICS regardless of geography.
+The enrichment is geographic AND industry — `local_market` describes the company's HQ county; `industry_lending` describes the company's NAICS regardless of geography. Unlike `labor_context` which has 6 enrichment dimensions (industry / local_market / turnover / compensation / summary / data_freshness), `lending_context` has 2 (local_market / industry_lending). SBA is a single-source dataset; the labor surface composes 5 BLS surveys.
 
 ## Screener filters
 

@@ -200,8 +200,8 @@ See [Pagination](/getting-started/pagination) for iteration patterns and the sem
 
 ```bash
 curl -H "X-API-Key: $THESMA_API_KEY" \
-  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=1" \
-  | jq '.data[0] | {fiscal_year, revenue, gross_profit, operating_income, net_income}'
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?statement=income&period=annual&per_page=1" \
+  | jq '.data[0] | {fiscal_year, line_items: {revenue: .line_items.revenue, gross_profit: .line_items.gross_profit, operating_income: .line_items.operating_income, net_income: .line_items.net_income}}'
 ```
 
 Returns a single-period snapshot. For multi-year time series, use the `{metric}` endpoint or iterate with `&offset=` / `&page=`. The [SEC financials recipe](/recipes/sec-financials) walks through a 5-year pull end-to-end.

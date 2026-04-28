@@ -17,14 +17,6 @@ curl -H "X-API-Key: $THESMA_API_KEY" \
   | jq '.data | {fips, name, level, population, area_sq_mi}'
 ```
 
-For the full metric payload (all 26, grouped by category):
-
-```bash
-curl -H "X-API-Key: $THESMA_API_KEY" \
-  "https://api.thesma.dev/v1/us/census/places/35620/metrics" \
-  | jq '.data.metrics | keys'
-```
-
 ## Python SDK
 
 ```python

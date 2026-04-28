@@ -64,17 +64,21 @@ The `gd_live_` prefix identifies Thesma production keys. Don't paste keys starti
 
 ```json
 {
-  "error": "unauthorized",
-  "error_code": "missing_api_key",
-  "message": "API key is missing. Pass it via the X-API-Key or Authorization: Bearer header."
+  "error": {
+    "code": "unauthorized",
+    "message": "Missing API key. Include it as 'Authorization: Bearer <key>' or 'X-API-Key: <key>'.",
+    "status": 401
+  }
 }
 ```
 
 ```json
 {
-  "error": "unauthorized",
-  "error_code": "invalid_api_key",
-  "message": "The provided API key is not valid or has been revoked."
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or revoked API key.",
+    "status": 401
+  }
 }
 ```
 
@@ -82,10 +86,12 @@ The `gd_live_` prefix identifies Thesma production keys. Don't paste keys starti
 
 ```json
 {
-  "error": "forbidden",
-  "error_code": "account_suspended",
-  "message": "This account is suspended. Contact support@thesma.dev."
+  "error": {
+    "code": "unauthorized",
+    "message": "Account is suspended.",
+    "status": 403
+  }
 }
 ```
 
-For the full error catalogue (status codes, `error_code` values, common causes), see [Errors](/getting-started/errors).
+For the full error catalogue (status codes, `error.code` values, common causes), see [Errors](/getting-started/errors).

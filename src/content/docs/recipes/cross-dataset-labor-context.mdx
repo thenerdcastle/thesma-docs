@@ -13,7 +13,7 @@ You're looking at a company's financials and want to know whether their headcoun
 
 ```bash
 curl -H "X-API-Key: $THESMA_API_KEY" \
-  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=1&include=labor_context"
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?statement=income&period=annual&per_page=1&include=labor_context"
 ```
 
 ## Python SDK
@@ -42,35 +42,65 @@ The `labor_context` field is a sibling of the standard financial fields on each 
 
 ```json
 {
-  "data": [
-    {
-      "ticker": "AAPL",
-      "fiscal_year": 2024,
-      "period_type": "annual",
-      "revenue": 391035000000,
-      "net_income": 93736000000,
-      "labor_context": {
-        "naics": "334220",
-        "naics_title": "Radio and Television Broadcasting and Wireless Communications Equipment Manufacturing",
-        "industry_employment": 105300,
-        "industry_employment_yoy_change": -0.021,
-        "industry_avg_hourly_wage": 44.12,
-        "industry_avg_wage_yoy_change": 0.043,
-        "data_period": "2024-12",
-        "source": "BLS CES"
-      }
+  "labor_context": {
+    "industry": {
+      "naics_code": "334111",
+      "naics_description": "Electronic computer manufacturing",
+      "naics_match_level": "6-digit",
+      "total_employment_thousands": 57.0,
+      "employment_yoy_pct": -2.9,
+      "avg_hourly_earnings": null,
+      "earnings_yoy_pct": null,
+      "data_period": "2026-02",
+      "source": "CES",
+      "adjustment": "sa"
+    },
+    "local_market": {
+      "county_fips": "06085",
+      "industry_employment": 8226,
+      "industry_avg_weekly_wage": 6919,
+      "total_employment": 1119379,
+      "data_period": "2025-Q3",
+      "source": "LAUS+QCEW",
+      "match_level": "county"
+    },
+    "turnover": {
+      "jolts_industry_code": "320000",
+      "job_openings_rate": 3.7,
+      "hires_rate": 2.0,
+      "quits_rate": 1.1,
+      "layoffs_and_discharges_rate": 0.8,
+      "labour_market_tightness": 1.95,
+      "data_period": "2026-02",
+      "source": "JOLTS"
+    },
+    "compensation_benchmark": {
+      "soc_code": "11-1011",
+      "soc_title": "Chief Executives",
+      "market_median_annual_wage": 206420,
+      "market_mean_annual_wage": 262930,
+      "reference_year": 2024,
+      "source": "OEWS"
+    },
+    "summary": {
+      "industry_hiring_trend": "declining",
+      "local_unemployment_trend": "stable",
+      "comp_to_market_ratio": null,
+      "labour_market_tightness": 1.95
+    },
+    "data_freshness": {
+      "ces_period": "2026-02",
+      "qcew_period": "2025-Q3",
+      "jolts_period": "2026-02",
+      "laus_period": "2026-01",
+      "oews_period": "2024",
+      "sec_exec_comp_snapshot_date": "2026-01-08"
     }
-  ],
-  "pagination": {
-    "page": 1,
-    "per_page": 1,
-    "total": 1,
-    "total_pages": 1
   }
 }
 ```
 
-Exact values drift as new data lands; the shape and field names are stable.
+The `labor_context` is one field within each `data[]` element alongside `company`, `line_items`, etc. — see the [Quickstart](/getting-started/quickstart) for the full top-level envelope. Real responses include additional fields per sub-object — see the [API Reference](/api-reference) for the complete schema.
 
 ## Available enrichments
 

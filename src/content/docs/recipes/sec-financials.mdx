@@ -11,12 +11,12 @@ You want a 5-year revenue, operating income, and net income trend for a public c
 
 ## curl — annual history
 
-`limit=5` gets the five most recent annual periods in one call:
+`per_page=5` gets the five most recent annual periods in one call:
 
 ```bash
 curl -H "X-API-Key: $THESMA_API_KEY" \
-  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?period=annual&limit=5" \
-  | jq '.data[] | {fiscal_year, revenue, operating_income, net_income}'
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?statement=income&period=annual&per_page=5" \
+  | jq '.data[] | {fiscal_year, line_items: {revenue: .line_items.revenue, operating_income: .line_items.operating_income, net_income: .line_items.net_income}}'
 ```
 
 ## Python SDK
@@ -43,40 +43,41 @@ Structurally exact at publication. Value-level numbers illustrative — exact fi
 {
   "data": [
     {
-      "fiscal_year": 2024,
-      "period_type": "annual",
-      "revenue": 391035000000,
-      "cost_of_revenue": 210352000000,
-      "gross_profit": 180683000000,
-      "research_and_development": 31370000000,
-      "selling_general_admin": 26097000000,
-      "operating_income": 123216000000,
-      "pre_tax_income": 123485000000,
-      "income_tax": 29749000000,
-      "net_income": 93736000000,
-      "eps_basic": 6.11,
-      "eps_diluted": 6.08,
+      "company": {
+        "cik": "0000320193",
+        "ticker": "AAPL",
+        "name": "Apple Inc."
+      },
+      "statement": "income",
+      "period": "annual",
+      "fiscal_year": 2025,
+      "fiscal_quarter": null,
+      "fiscal_year_end": "2025-09-27",
+      "filing_accession": "0000320193-25-000079",
+      "taxonomy": "us-gaap",
+      "currency": "USD",
+      "line_items": {
+        "revenue": 416161000000.0,
+        "cost_of_revenue": 220960000000.0,
+        "gross_profit": 195201000000.0,
+        "operating_income": 133050000000.0,
+        "pre_tax_income": 132729000000.0,
+        "net_income": 112010000000.0,
+        "eps_basic": 7.49,
+        "eps_diluted": 7.46
+      },
       "metadata": {
-        "accession_number": "0000320193-24-000123",
-        "filed_at": "2024-11-01",
-        "currency": "USD",
-        "source_tags": {
-          "revenue": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
-          "net_income": "us-gaap:NetIncomeLoss"
-        },
-        "mapping_quality": "exact"
+        "source": "ixbrl",
+        "data_completeness": 14,
+        "expected_fields": 23
       }
     }
-    /* ... 4 more rows for FY2023, FY2022, FY2021, FY2020 ... */
-  ],
-  "pagination": {
-    "page": 1,
-    "per_page": 5,
-    "total": 5,
-    "total_pages": 1
-  }
+    /* ... 4 more elements for FY2024, FY2023, FY2022, FY2021 with the same shape ... */
+  ]
 }
 ```
+
+Note: `data` is an array even when you ask for one period — iterate or index `data[0]`. The 8 line_items shown above (revenue → eps_diluted) are the same fields surfaced on the [Quickstart](/getting-started/quickstart); the full response includes additional line items per [XBRL mapping](/datasets/sec-edgar/xbrl-mapping).
 
 ## Alternative — single-metric time series
 

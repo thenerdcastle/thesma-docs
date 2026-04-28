@@ -80,19 +80,64 @@ The `?include=labor_context` parameter on any SEC company or financials endpoint
 ```json
 {
   "labor_context": {
-    "naics": "3254",
-    "naics_title": "Pharmaceutical and Medicine Manufacturing",
-    "industry_employment": 177200,
-    "industry_employment_yoy": -0.018,
-    "industry_avg_hourly_earnings": 44.87,
-    "industry_earnings_yoy": 0.041,
-    "period": "2025-11",
-    "source": "BLS CES"
+    "industry": {
+      "naics_code": "334111",
+      "naics_description": "Electronic computer manufacturing",
+      "naics_match_level": "6-digit",
+      "total_employment_thousands": 57.0,
+      "employment_yoy_pct": -2.9,
+      "avg_hourly_earnings": null,
+      "earnings_yoy_pct": null,
+      "data_period": "2026-02",
+      "source": "CES",
+      "adjustment": "sa"
+    },
+    "local_market": {
+      "county_fips": "06085",
+      "industry_employment": 8226,
+      "industry_avg_weekly_wage": 6919,
+      "total_employment": 1119379,
+      "data_period": "2025-Q3",
+      "source": "LAUS+QCEW",
+      "match_level": "county"
+    },
+    "turnover": {
+      "jolts_industry_code": "320000",
+      "job_openings_rate": 3.7,
+      "hires_rate": 2.0,
+      "quits_rate": 1.1,
+      "layoffs_and_discharges_rate": 0.8,
+      "labour_market_tightness": 1.95,
+      "data_period": "2026-02",
+      "source": "JOLTS"
+    },
+    "compensation_benchmark": {
+      "soc_code": "11-1011",
+      "soc_title": "Chief Executives",
+      "market_median_annual_wage": 206420,
+      "market_mean_annual_wage": 262930,
+      "reference_year": 2024,
+      "source": "OEWS"
+    },
+    "summary": {
+      "industry_hiring_trend": "declining",
+      "local_unemployment_trend": "stable",
+      "comp_to_market_ratio": null,
+      "labour_market_tightness": 1.95
+    },
+    "data_freshness": {
+      "ces_period": "2026-02",
+      "qcew_period": "2025-Q3",
+      "jolts_period": "2026-02",
+      "laus_period": "2026-01",
+      "oews_period": "2024",
+      "sec_exec_comp_snapshot_date": "2026-01-08"
+    }
   }
 }
 ```
 
-See the [cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) for the full walk-through.
+Real responses include additional fields per sub-object — see the [API Reference](/api-reference) for the complete schema. See the [cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) for the full walk-through.
 
 ## Screener filters
 
