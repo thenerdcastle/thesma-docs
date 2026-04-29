@@ -111,10 +111,19 @@ The `labor_context` is one field within each `data[]` element alongside `company
 
 ```bash
 curl -H "X-API-Key: $THESMA_API_KEY" \
-  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?include=labor_context,lending_context"
+  "https://api.thesma.dev/v1/us/sec/companies/AAPL/financials?statement=income&include=labor_context,lending_context"
 ```
 
 Each enrichment adds one object to the response row; they can be requested independently or together.
+
+### Where `?include=` works
+
+Both enrichment params work on two endpoints:
+
+- **`/v1/us/sec/companies/{identifier}`** — the company-detail surface. No other params required; the enrichment is added directly to the company object.
+- **`/v1/us/sec/companies/{identifier}/financials`** — adds the enrichment to each row in the paginated `data` array. Requires `?statement=` (see [SEC EDGAR](/datasets/sec-edgar)).
+
+Use the company-detail surface when you only need the enrichment (and not the financials); use the financials surface when you want them aligned per filing.
 
 ## Works for IFRS filers too
 

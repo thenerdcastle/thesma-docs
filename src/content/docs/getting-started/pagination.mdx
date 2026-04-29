@@ -80,12 +80,13 @@ The semantic-search endpoint `/v1/us/sec/sections/search` does **not** return a 
   "pagination": {
     "page": 1,
     "per_page": 25,
-    "has_next": true
+    "total": null,
+    "has_more": true
   }
 }
 ```
 
-Use `has_next` to drive your iteration loop on search results, not `total_pages`:
+Use `has_more` to drive your iteration loop on search results, not `total_pages` (semantic search returns `total: null` because the scoring model doesn't compute a count):
 
 ```python
 page = 1
@@ -93,7 +94,7 @@ while True:
     results = client.sec.sections.search("electric vehicle supply chain", page=page, per_page=25)
     for hit in results.data:
         print(hit.accession_number, hit.score)
-    if not results.pagination.has_next:
+    if not results.pagination.has_more:
         break
     page += 1
 ```

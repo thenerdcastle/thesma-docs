@@ -134,12 +134,27 @@ financials = client.sec.companies("AAPL").financials(period="annual", limit=1)
 
 row = financials.data[0]
 print(row.fiscal_year)                  # int
-print(row.revenue)                       # int (USD, no decimals)
-print(row.eps_diluted)                   # float
+print(row.line_items.revenue)            # float (presentation currency)
+print(row.line_items.eps_diluted)        # float
 
 # Serialise to dict for downstream use
 row.model_dump()                         # canonical Pydantic dump
 ```
+
+### IFRS-typed fields
+
+Every `/financials` row carries `taxonomy`, `currency`, and `_reporting_notes` so you can branch on the reporting framework at parse time:
+
+```python
+spotify = client.sec.companies("SPOT").financials(period="annual", limit=1)
+
+row = spotify.data[0]
+print(row.taxonomy)              # 'ifrs-full'
+print(row.currency)              # 'EUR'
+print(row._reporting_notes)      # IFRS-specific footnotes (revenue scope, etc.)
+```
+
+US-GAAP filers carry the same fields with `taxonomy='us-gaap'` and `currency='USD'`. Branching on `row.taxonomy` is the canonical way to handle mixed cohorts; values stay in the filer's native presentation currency with no implicit conversion. See the [IFRS filer recipe](/recipes/ifrs-filer-history) for a worked Spotify example.
 
 ## Typed error classes
 

@@ -132,7 +132,7 @@ Exports stream CSV or JSONL and are available on the **Business** tier and above
 
 ## Cross-dataset enrichment
 
-Two `include` parameters add data from adjacent verticals without a second API call. Both work on `/v1/us/sec/companies/{cik}` and on list endpoints that return company context.
+Two `include` parameters add data from adjacent verticals without a second API call. Both work on `/v1/us/sec/companies/{identifier}` (company detail) and on `/v1/us/sec/companies/{identifier}/financials` (each row in the paginated response carries the enrichment). Use the company-detail surface for a one-shot lookup; use the financials surface to align enrichment with each filing.
 
 ### `?include=labor_context`
 
