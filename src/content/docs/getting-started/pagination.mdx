@@ -12,7 +12,7 @@ List endpoints use **page-based pagination** with `page` and `per_page` query pa
 | `page` | `1` | unbounded (capped by `total_pages`) |
 | `per_page` | `25` | `100` |
 
-Requesting `per_page=150` returns a 400 with `error_code: invalid_parameter` — the cap is enforced, not silently clamped. Check the [API Reference](/api-reference) for any endpoint-specific overrides (most use the same defaults).
+Requesting `per_page=150` returns a 400 with `error.code: validation_error` and a message naming the offending field (`field 'query -> per_page': Input should be less than or equal to 100`) — the cap is enforced, not silently clamped. Check the [API Reference](/api-reference) for any endpoint-specific overrides (most use the same defaults).
 
 ## Response envelope
 
