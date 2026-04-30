@@ -107,7 +107,7 @@ Each row below is a tag group from the OpenAPI spec. See the [API Reference](/ap
 | GET | `/v1/us/sec/filings/{accession_number}/sections/{section_type}/changes` | Period-over-period diffs of a section's text. |
 | GET | `/v1/us/sec/companies/{cik}/sections` | Cross-filing section index for one company. |
 | GET | `/v1/us/sec/companies/{cik}/sections/{section_type}/entities` | Entities (people, companies, places) mentioned in a section across filings. |
-| GET | `/v1/us/sec/sections/search` | Semantic search across extracted section text. |
+| GET | `/v1/us/sec/sections/search` | [Semantic search](/datasets/sec-edgar/semantic-search) across extracted section text. |
 
 ### Screener
 
@@ -209,6 +209,7 @@ Returns a single-period snapshot. For multi-year time series, use the `{metric}`
 ## See also
 
 - [XBRL mapping](/datasets/sec-edgar/xbrl-mapping) — how filings are normalised to canonical fields
+- [Semantic search](/datasets/sec-edgar/semantic-search) — natural-language search across 10-K and 10-Q narrative sections
 - [SEC financials recipe](/recipes/sec-financials) — 5 years of annual financials, curl + Python
 - [Cross-dataset labor-context recipe](/recipes/cross-dataset-labor-context) — flagship enrichment
 - [API Reference — SEC EDGAR](/api-reference) — full schema detail

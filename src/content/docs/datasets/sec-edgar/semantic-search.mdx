@@ -1,0 +1,160 @@
+---
+title: Semantic search
+description: Natural-language search across 10-K and 10-Q narrative sections — Risk Factors, MD&A, and other reportable items. Embedding-based, ranked by cosine similarity.
+---
+
+Search 10-K and 10-Q narrative sections (Risk Factors, MD&A, and other reportable items) using natural-language queries. Returns matching text excerpts ranked by semantic similarity, not keyword match.
+
+## What this is — and isn't
+
+This is **embedding-based semantic search**, not keyword search. A query like "supply chain disruption from tariffs" matches passages that discuss those concepts even when they don't use those exact words. Coverage is 99% of US domestic 10-K and 10-Q filers in the covered universe (4,424 of 4,453). Foreign filers (20-F / 40-F / 6-K), shells, and the 29 domestic filers with annual reports >50MB are out of scope, as are 8-K, DEF 14A, Form 4, 13F, and other non-narrative filings.
+
+## Endpoint
+
+```
+GET /v1/us/sec/sections/search
+```
+
+Authentication: `X-API-Key` header (or `Authorization: Bearer`), same as every other endpoint.
+
+## Parameters
+
+| Parameter | Type | Required | Default | Description | Example |
+|---|---|---|---|---|---|
+| `q` | string | yes | — | Natural-language query. Minimum 3 characters after whitespace strip. | `supply chain disruption from tariffs` |
+| `identifier` | string | optional | — | Scope to one company. Accepts ticker, 10-digit CIK, or stripped CIK — interchangeable, as on every other SEC endpoint. | `AAPL`, `0000320193`, `320193` |
+| `filing_type` | string | optional | — | Scope to a filing form. | `10-K`, `10-Q` |
+| `section_type` | string | optional | — | Scope to a section. `item_1a` is Risk Factors; `item_7` is MD&A. The same `section_type` value can map to different titles by form (`item_1` is "Business" in a 10-K, "Legal Proceedings" in a 10-Q). | `item_1a` |
+| `year` | integer | optional | — | Scope to a fiscal year. | `2024` |
+| `min_similarity` | number | optional | `0.3` | Minimum cosine similarity threshold (0.0–1.0). Higher = stricter. | `0.5` |
+| `page` | integer | optional | `1` | Page number. | `2` |
+| `per_page` | integer | optional | `20` | Results per page (max `50`). | `25` |
+
+See the [API Reference](/api-reference) for the canonical schema.
+
+## Example request
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/sections/search?q=supply+chain+disruption+from+tariffs&per_page=2"
+```
+
+## Example response
+
+Each hit is a single chunk of section text with the metadata needed to cite it back to its source filing.
+
+```json
+{
+  "data": [
+    {
+      "chunk_text": "These disruptions have delayed and may continue to delay the timing of some customer orders and expected deliveries of our products. We believe that these supply chain trends will continue in 2022. If the impacts of the supply chain disruptions are more severe than we expect, it could result in longer lead times and further increased costs, all of which could materially adversely affect our business, financial condition and results of operations. If we incur higher costs as a result of trade policies, treaties, government regulations or tariffs, we may become less profitable…",
+      "similarity_score": 0.806271,
+      "word_count": 177,
+      "accession_number": "0001171843-22-001806",
+      "cik": "0001123494",
+      "company_name": "Harvard Bioscience Inc",
+      "company_ticker": "HBIO",
+      "filing_type": "10-K",
+      "filed_at": "2022-03-11T00:00:00Z",
+      "section_type": "item_1a",
+      "section_title": null,
+      "fiscal_year": 2021
+    },
+    {
+      "chunk_text": "If we experience additional supply disruptions, we may not be able to develop alternate sourcing quickly. Any disruption of our production schedule caused by an unexpected shortage of supplies even for a relatively short period of time could cause us to alter production schedules or suspend production entirely, which could cause a loss of revenues, which would adversely affect our operations. Tariff policies and potential countermeasures could continue to increase our costs and disrupt our global supply chain…",
+      "similarity_score": 0.803462,
+      "word_count": 163,
+      "accession_number": "0001437749-26-007797",
+      "cik": "0000884269",
+      "company_name": "Alpha Pro Tech Ltd",
+      "company_ticker": "APT",
+      "filing_type": "10-K",
+      "filed_at": "2026-03-11T00:00:00Z",
+      "section_type": "item_1a",
+      "section_title": "Risk Factors.",
+      "fiscal_year": 2025
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "per_page": 2,
+    "total": null,
+    "has_more": true
+  }
+}
+```
+
+The pagination envelope is intentionally different from the rest of the API — `total` is always `null` and you iterate using `has_more`. See [Pagination — Semantic search](/getting-started/pagination#semantic-search--different-shape) for the iteration loop.
+
+## Coverage and limits
+
+### Coverage
+
+- 99% of US domestic 10-K and 10-Q filers in the covered universe (4,424 of 4,453)
+- 10-K and 10-Q narrative sections — Risk Factors, MD&A, Business, Legal Proceedings, and other reportable items
+- Filings from at least 2019 through current; older filings are present where extracted
+
+### Limits
+
+- Free tier and paid tiers have per-tier rate limits. See [pricing](https://thesma.dev/pricing) for current values.
+- `per_page` caps at `50`.
+- `q` must be at least 3 characters after whitespace strip.
+
+### Out of scope
+
+- Foreign filers (20-F, 40-F, 6-K) — different section structure; not currently extracted.
+- Annual reports >50MB — exceed the text-extraction pipeline size cap (29 domestic filers affected).
+- 8-K, DEF 14A, Form 4, and 13F filings.
+- Tabular financial data — use [`/v1/us/sec/companies/{cik}/financials`](/datasets/sec-edgar#financials) instead.
+
+## Demos
+
+### Demo A — Cross-company: tariff exposure
+
+`q=supply chain disruption from tariffs` returns the top filers discussing tariff-driven supply disruption across the entire universe, ranked by similarity.
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/sections/search?q=supply+chain+disruption+from+tariffs&per_page=5"
+```
+
+Top 5 hits (captured 2026-04-30):
+
+| Rank | Company | Filing | FY | Similarity |
+|---|---|---|---|---|
+| 1 | Harvard Bioscience (HBIO) | 10-K | 2021 | 0.806 |
+| 2 | Alpha Pro Tech (APT) | 10-K | 2025 | 0.803 |
+| 3 | Axon Enterprise (AXON) | 10-K/A | 2024 | 0.797 |
+| 4 | Honest Company (HNST) | 10-Q | 2025 | 0.794 |
+| 5 | Flowers Foods (FLO) | 10-K | 2026 | 0.793 |
+
+Sample excerpt from the Axon hit:
+
+> Tariff policies and potential countermeasures could continue to increase our costs and disrupt our global supply chain… ongoing trade tensions between the United States and China have led to a series of significant tariffs on the importation of certain product categories…
+
+Use this pattern to surface every filer materially exposed to a theme — without keyword-matching the exact phrasing each one happens to use.
+
+### Demo B — Single-company evolution: AI risk in Apple's Risk Factors
+
+`q=AI risk competitive threat`, scoped to AAPL Risk Factors (`section_type=item_1a`), returns Apple's own framing of AI-related competitive risk across years — useful for tracking how a company's narrative evolves over time.
+
+```bash
+curl -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/us/sec/sections/search?q=AI+risk+competitive+threat&identifier=AAPL&section_type=item_1a&per_page=5"
+```
+
+5 AAPL hits spanning fy2008 to fy2024 (captured 2026-04-30). Excerpts from the most recent two:
+
+> **AAPL 10-K, fy2024** — *similarity 0.381* — The introduction of new and complex technologies, such as artificial intelligence features, can increase these and other safety risks, including exposing users to harmful, inaccurate or other negative content and experiences. There can be no assurance the Company will be able to detect and fix all issues and defects in the hardware, software and services it offers…
+
+> **AAPL 10-K, fy2020** — *similarity 0.384* — The Company believes it is unique in that it designs and develops nearly the entire solution for its products, including the hardware, operating system, numerous software applications and related services. As a result, the Company must make significant investments in R&D…
+
+> **AAPL 10-K, fy2008** — *similarity 0.373* — Other income and expense also could vary materially from expectations depending on gains or losses realized on the sale or exchange of financial instruments; impairment charges resulting from revaluations of debt and equity securities and other investments…
+
+Note the lower similarity scores compared to Demo A — Apple's risk-factor language predates the modern "AI risk" framing in most years, and the model surfaces the closest-fit chunks rather than refusing to return anything. Tighten with `min_similarity=0.5` if you only want strong matches.
+
+## See also
+
+- [SEC EDGAR overview](/datasets/sec-edgar) — the rest of the dataset
+- [Pagination — Semantic search](/getting-started/pagination#semantic-search--different-shape) — iteration loop
+- [API Reference](/api-reference) — full schema in Scalar
