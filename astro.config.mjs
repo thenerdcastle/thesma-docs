@@ -14,7 +14,7 @@ export default defineConfig({
       title: 'Thesma docs',
       description: 'Developer documentation for the Thesma API — SEC EDGAR, US Census, US BLS, US SBA.',
       logo: {
-        src: './public/favicon.svg',
+        src: './public/logo.svg',
         replacesTitle: false,
       },
       editLink: {
