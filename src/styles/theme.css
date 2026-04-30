@@ -63,6 +63,14 @@
   --sl-color-gray-1: #f1f5f9;
 }
 
+/* Masthead logo — constrain to 32px to match the thesma.dev marketing nav.
+   Starlight's default height is ~40px (driven by --sl-nav-height) which
+   visually overpowers the wordmark. */
+.site-title img {
+  height: 32px;
+  width: auto;
+}
+
 /* Small refinements to match thesma.dev code blocks */
 .sl-markdown-content pre {
   background-color: #0f1629 !important;
