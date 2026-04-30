@@ -65,7 +65,11 @@
 
 /* Masthead logo — constrain to 32px to match the thesma.dev marketing nav.
    Starlight's default height is ~40px (driven by --sl-nav-height) which
-   visually overpowers the wordmark. */
+   visually overpowers the wordmark. Also widen the gap between mark and
+   wordmark to match marketing's gap-2.5 (10px). */
+.site-title {
+  gap: 0.625rem;
+}
 .site-title img {
   height: 32px;
   width: auto;
