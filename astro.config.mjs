@@ -17,9 +17,6 @@ export default defineConfig({
         src: './public/logo.svg',
         replacesTitle: false,
       },
-      editLink: {
-        baseUrl: 'https://github.com/thenerdcastle/thesma-docs/edit/main/',
-      },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/thenerdcastle/thesma-docs' },
       ],
