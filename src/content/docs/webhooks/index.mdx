@@ -1,0 +1,79 @@
+---
+title: Webhooks
+description: Subscribe to real-time SEC filing events. HMAC-signed POST deliveries, retries, and test endpoint. Five subscribable event types — filings, corporate events, compensation, board changes, and amendments.
+---
+
+Webhooks deliver SEC filing events to a URL of your choice as soon as they're parsed. Five event types are subscribable today; deliveries are signed with HMAC-SHA256 and retried with exponential backoff.
+
+## Subscribable events
+
+| Event type | Category | Triggered by |
+|---|---|---|
+| [`filing.created`](/webhooks/payloads#filing-created) | filings | Any new SEC filing parsed (10-K, 10-Q, 8-K, DEF 14A, …) |
+| [`corporate_event.created`](/webhooks/payloads#corporate-event-created) | corporate_events | Each item on a parsed 8-K (one event per item) |
+| [`compensation.filed`](/webhooks/payloads#compensation-filed) | compensation | Executive compensation parsed from a DEF 14A |
+| [`board.changed`](/webhooks/payloads#board-changed) | governance | Board membership change detected (joined or departed) |
+| [`amendment.filed`](/webhooks/payloads#amendment-filed) | filings | Amendment form parsed (10-K/A, 20-F/A, etc.) |
+
+A subscription can listen for one or more event types. Optionally narrow by `filing_types` (e.g., only `10-K` and `10-Q`). The catalogue is also available live at [`GET /v1/webhooks/event-types`](/api-reference).
+
+## How delivery works
+
+1. An ingestion worker parses a filing and queues an event row.
+2. For each active subscription that matches, a delivery row is queued.
+3. The delivery worker POSTs the JSON [envelope](/webhooks/payloads#envelope) to the subscription's URL with `Content-Type: application/json` and an `X-Thesma-Signature` header.
+4. Any 2xx response counts as success. Anything else (or a connection error) triggers a retry.
+
+Subscriptions are created in the [portal](https://portal.thesma.dev/dashboard) or via [`POST /v1/webhooks`](/api-reference). The signing `secret` is returned **once** at creation time — store it immediately.
+
+## Verifying signatures
+
+Every POST carries an `X-Thesma-Signature` header of the form `t=<unix_ts>,v1=<hex>`. The signature is HMAC-SHA256 over `<unix_ts>.<raw_body>`, using your subscription secret as the key.
+
+```python
+import hashlib
+import hmac
+
+def verify(secret: str, header: str, raw_body: bytes) -> bool:
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    ts, sig = parts["t"], parts["v1"]
+    expected = hmac.new(
+        secret.encode(),
+        ts.encode() + b"." + raw_body,
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(sig, expected)
+```
+
+**Verify against the raw request body**, not a re-serialised dict. Thesma signs the canonical JSON form (`json.dumps(payload, sort_keys=True)`); re-serialising in your handler can produce different bytes and fail verification.
+
+Also reject requests where `t` is more than a few minutes old — that prevents replay of a captured payload after a leaked signature.
+
+Rotate the secret at any time with [`POST /v1/webhooks/{id}/rotate-secret`](/api-reference). The new secret is returned once; the old one is invalidated immediately.
+
+## Retries and auto-disable
+
+Failed deliveries are retried up to 5 times with delays of `0s`, `5s`, `25s`, `120s`, `600s` (≈ 12.5 minutes total). After the final attempt, the delivery is marked failed and the subscription's `consecutive_failure_count` is incremented.
+
+After **10 consecutive failures** across deliveries, the subscription is auto-disabled. Reactivate it via the portal or [`PATCH /v1/webhooks/{id}`](/api-reference) with `is_active: true` once your endpoint is ready.
+
+For longer-window recovery, replay any single delivery with [`POST /v1/webhooks/{id}/deliveries/{delivery_id}/replay`](/api-reference). Replays are sent with `triggered_by: replay` so your handler can distinguish them.
+
+## Testing
+
+Send a synthetic event to your endpoint without waiting for a real filing:
+
+```bash
+curl -X POST -H "X-API-Key: $THESMA_API_KEY" \
+  "https://api.thesma.dev/v1/webhooks/$WEBHOOK_ID/test"
+```
+
+The endpoint returns `202` with a `test_delivery_id`. The receiver gets a real, signed POST with `event.type = "webhook.test"` and a small payload — see [Test events](/webhooks/payloads#test-events) for the exact shape. Rate-limited to 5 calls per 60 seconds per subscription.
+
+Test deliveries don't count against `consecutive_failure_count`, but they DO go through the same signing and delivery path — so a failing test reliably indicates a broken endpoint.
+
+## See also
+
+- [Payload schemas](/webhooks/payloads) — envelope + every event's `data` block
+- [API Reference — Webhooks](/api-reference) — full schema for every webhook endpoint
+- [Errors](/getting-started/errors) — error envelope shape, including 401 from invalid signatures

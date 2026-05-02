@@ -1,0 +1,239 @@
+---
+title: Payload schemas
+description: Webhook envelope shape, signing, and the data block for each subscribable event type — filing.created, corporate_event.created, compensation.filed, board.changed, amendment.filed. Plus webhook.test.
+---
+
+This page documents the exact shape of every webhook delivery — the wrapping envelope and the per-event `data` block. The anchors here are the same URLs returned by the live `payload_schema_url` field on [`GET /v1/webhooks/event-types`](/api-reference), so you can deep-link from your tooling.
+
+For end-to-end behaviour (signing, retries, rotation, the test endpoint), see the [Webhooks overview](/webhooks).
+
+<h2 id="envelope">Envelope</h2>
+
+Every delivery — including [test events](#test-events) — carries this wrapper:
+
+```json
+{
+  "id": "f4a8c0d1-3e7e-4b21-9b71-2b8c6f0a4c11",
+  "timestamp": "2026-05-02T14:23:11.482Z",
+  "type": "filing.created",
+  "data": { /* per-event shape, see below */ }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique delivery ID. Persistent across retries — use it for idempotency on your side. |
+| `timestamp` | string (ISO 8601, UTC) | When the underlying event was recorded by Thesma. Not the delivery attempt time. |
+| `type` | string | The event type (e.g., `filing.created`). Matches one of the values in [`/v1/webhooks/event-types`](/api-reference) plus the internal `webhook.test`. |
+| `data` | object | Event-specific payload. Schema depends on `type` — sections below. |
+
+**Bytes-on-the-wire are canonical JSON** — `json.dumps(payload, sort_keys=True)` semantics. The `X-Thesma-Signature` is computed over those exact bytes; verifying against a re-serialised dict will fail. See [signature verification](/webhooks#verifying-signatures).
+
+Headers on every delivery:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-Thesma-Signature` | `t=<unix_ts>,v1=<hex>` — HMAC-SHA256 over `<unix_ts>.<raw_body>` |
+
+---
+
+<h2 id="filing-created">filing.created</h2>
+
+A new SEC filing has been parsed and stored. Fires once per filing, regardless of form type.
+
+```json
+{
+  "id": "9f3a8c00-4f92-49e1-bb6e-1a4c0f7f62a1",
+  "timestamp": "2026-05-02T13:45:02.117Z",
+  "type": "filing.created",
+  "data": {
+    "filing_type": "10-K",
+    "cik": "0000320193",
+    "ticker": "AAPL",
+    "company_name": "Apple Inc.",
+    "accession_number": "0000320193-25-000123",
+    "filed_at": "2025-11-01T00:00:00Z",
+    "processed_at": "2026-05-02T13:45:02.117Z"
+  }
+}
+```
+
+| `data` field | Type | Description |
+|---|---|---|
+| `filing_type` | string | SEC form type (`10-K`, `10-Q`, `8-K`, `DEF 14A`, …). |
+| `cik` | string | 10-digit zero-padded CIK. |
+| `ticker` | string \| null | Primary ticker if the issuer is currently listed; `null` for delisted, foreign-only, or fund-only filers. |
+| `company_name` | string \| null | Issuer name as recorded by Thesma. |
+| `accession_number` | string | SEC accession number, dashed form. |
+| `filed_at` | string (ISO 8601) | When the filing was filed with the SEC. |
+| `processed_at` | string (ISO 8601) | When Thesma finished parsing the filing. |
+
+Narrow with `filing_types` on the subscription if you only care about a subset. To also receive [`amendment.filed`](#amendment-filed), subscribe to it explicitly — `filing.created` does fire for amendments too, but `amendment.filed` is the form that carries the link back to the filing being amended.
+
+---
+
+<h2 id="corporate-event-created">corporate_event.created</h2>
+
+An 8-K has been parsed. Fires **once per 8-K item** — a single 8-K reporting three items emits three events.
+
+```json
+{
+  "id": "2c8f1ab3-9a04-4f10-8df8-71e2c9405b30",
+  "timestamp": "2026-05-02T15:02:48.014Z",
+  "type": "corporate_event.created",
+  "data": {
+    "cik": "0000789019",
+    "ticker": "MSFT",
+    "accession": "0000789019-26-000041",
+    "item_code": "1.01",
+    "item_description": "Entry into a Material Definitive Agreement",
+    "filed_at": "2026-05-02T14:58:00Z",
+    "corporate_event_url": "https://www.sec.gov/Archives/edgar/data/789019/000078901926000041/0000789019-26-000041-index.htm"
+  }
+}
+```
+
+| `data` field | Type | Description |
+|---|---|---|
+| `cik` | string | 10-digit zero-padded CIK. |
+| `ticker` | string \| null | Primary ticker if listed. |
+| `accession` | string | Accession number of the 8-K filing. |
+| `item_code` | string | 8-K item code (`1.01`, `2.02`, `5.02`, …). |
+| `item_description` | string | Human-readable item label per the 8-K specification. |
+| `filed_at` | string (ISO 8601) | When the 8-K was filed. |
+| `corporate_event_url` | string | URL of the underlying SEC 8-K filing. |
+
+A single 8-K filing emits one [`filing.created`](#filing-created) plus N `corporate_event.created` events (one per item). Idempotency-key on `(accession, item_code)` if you de-dupe on your side.
+
+---
+
+<h2 id="compensation-filed">compensation.filed</h2>
+
+Executive compensation data has been extracted from a DEF 14A proxy filing. Fires once per proxy when at least one named executive officer (NEO) row was parsed.
+
+```json
+{
+  "id": "7d2e9a4b-1c03-44f1-bc8a-3a91207efb52",
+  "timestamp": "2026-05-02T11:19:33.700Z",
+  "type": "compensation.filed",
+  "data": {
+    "cik": "0001318605",
+    "ticker": "TSLA",
+    "accession": "0001628280-26-009817",
+    "fiscal_year": 2025,
+    "filed_at": "2026-04-30T00:00:00Z",
+    "neo_count": 5,
+    "total_compensation_url": "https://www.sec.gov/Archives/edgar/data/1318605/000162828026009817/0001628280-26-009817-index.htm"
+  }
+}
+```
+
+| `data` field | Type | Description |
+|---|---|---|
+| `cik` | string | 10-digit zero-padded CIK. |
+| `ticker` | string \| null | Primary ticker if listed. |
+| `accession` | string | Accession number of the DEF 14A. |
+| `fiscal_year` | integer | Fiscal year the compensation pertains to. |
+| `filed_at` | string (ISO 8601) | When the DEF 14A was filed. |
+| `neo_count` | integer | Number of NEO rows parsed from the filing. |
+| `total_compensation_url` | string | URL of the underlying DEF 14A filing. |
+
+Pull the parsed values from [`GET /v1/us/sec/companies/{identifier}/executive-compensation`](/api-reference) once you receive the event.
+
+---
+
+<h2 id="board-changed">board.changed</h2>
+
+A board membership change (joined or departed) has been detected from a DEF 14A. Fires **once per detected change** — a proxy reporting three changes emits three events.
+
+```json
+{
+  "id": "5b1a772f-b5cd-4b06-9a02-f0d2d4b5713e",
+  "timestamp": "2026-05-02T11:19:33.812Z",
+  "type": "board.changed",
+  "data": {
+    "cik": "0001018724",
+    "ticker": "AMZN",
+    "accession": "0001018724-26-000056",
+    "change_type": "joined",
+    "member_name": "Jane A. Doe",
+    "effective_date": "2026-04-15",
+    "source_url": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000056/0001018724-26-000056-index.htm"
+  }
+}
+```
+
+| `data` field | Type | Description |
+|---|---|---|
+| `cik` | string | 10-digit zero-padded CIK. |
+| `ticker` | string \| null | Primary ticker if listed. |
+| `accession` | string | Accession number of the DEF 14A. |
+| `change_type` | string | `joined` or `departed`. |
+| `member_name` | string | Director name as parsed from the filing. |
+| `effective_date` | string (ISO 8601 date) \| null | Effective date of the change if the filing states it; otherwise `null`. |
+| `source_url` | string | URL of the underlying DEF 14A filing. |
+
+A single DEF 14A may emit a [`compensation.filed`](#compensation-filed) plus zero or more `board.changed` events.
+
+---
+
+<h2 id="amendment-filed">amendment.filed</h2>
+
+An amendment form (`10-K/A`, `10-Q/A`, `20-F/A`, …) has been parsed. Carries the accession of the original filing it amends.
+
+```json
+{
+  "id": "ae84e16f-8b7a-4d10-8c19-47fc4d6b9fc1",
+  "timestamp": "2026-05-02T09:07:21.045Z",
+  "type": "amendment.filed",
+  "data": {
+    "cik": "0000320193",
+    "ticker": "AAPL",
+    "accession": "0000320193-26-000088",
+    "amends_accession": "0000320193-25-000123",
+    "form_type": "10-K/A",
+    "filed_at": "2026-05-02T09:00:00Z",
+    "filing_url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000088/0000320193-26-000088-index.htm"
+  }
+}
+```
+
+| `data` field | Type | Description |
+|---|---|---|
+| `cik` | string | 10-digit zero-padded CIK. |
+| `ticker` | string \| null | Primary ticker if listed. |
+| `accession` | string | Accession number of the amendment itself. |
+| `amends_accession` | string \| null | Accession of the original filing being amended. `null` if Thesma couldn't tie the amendment back to a specific original (rare). |
+| `form_type` | string | Always ends in `/A` — `10-K/A`, `10-Q/A`, `20-F/A`, etc. |
+| `filed_at` | string (ISO 8601) | When the amendment was filed. |
+| `filing_url` | string | URL of the underlying SEC amendment filing. |
+
+Every amendment also emits a [`filing.created`](#filing-created). Subscribe to whichever fits your pipeline — `filing.created` if you treat all forms uniformly, `amendment.filed` if you specifically need the back-link to the amended original.
+
+---
+
+<h2 id="test-events">Test events</h2>
+
+`POST /v1/webhooks/{id}/test` emits a synthetic delivery with `event.type = "webhook.test"` and the following payload:
+
+```json
+{
+  "id": "11111111-aaaa-2222-bbbb-333333333333",
+  "timestamp": "2026-05-02T16:00:00.000Z",
+  "type": "webhook.test",
+  "data": {
+    "message": "Test event from Thesma webhooks",
+    "triggered_by": "you@example.com"
+  }
+}
+```
+
+| `data` field | Type | Description |
+|---|---|---|
+| `message` | string | Always the literal `"Test event from Thesma webhooks"`. |
+| `triggered_by` | string | Email of the user who fired the test (taken from the API key's owner). |
+
+`webhook.test` is **internal-only** — you cannot subscribe to it via `events: ["webhook.test"]` on a subscription. The only way to receive one is to call the test endpoint. Test deliveries go through the same signing and retry path as real events but do **not** count toward `consecutive_failure_count`.
+
+See [Webhooks → Testing](/webhooks#testing) for the rate-limit details and curl example.

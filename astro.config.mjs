@@ -43,6 +43,10 @@ export default defineConfig({
           autogenerate: { directory: 'clients' },
         },
         {
+          label: 'Webhooks',
+          autogenerate: { directory: 'webhooks' },
+        },
+        {
           label: 'API Reference',
           link: '/api-reference',
         },
